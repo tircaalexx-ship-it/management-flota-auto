@@ -19,7 +19,10 @@ console.log('🌐 Environment:', isProduction ? 'PRODUCTION' : 'DEVELOPMENT');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session middleware pentru producție
+// Servește fișiere statice
+app.use(express.static('public'));
+
+// Session middleware
 app.use(session({
     secret: process.env.SESSION_SECRET || 'flota-auto-secret-key-2024',
     resave: false,
@@ -30,17 +33,15 @@ app.use(session({
     }
 }));
 
-// Configurare baza de date pentru producție
+// Configurare baza de date
 let dbPath;
 if (isProduction) {
-    // Pe Render, folosește /tmp
     const tempDir = '/tmp/data';
     if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
     }
     dbPath = '/tmp/data/flota.db';
 } else {
-    // Development
     if (!fs.existsSync('./data')) {
         fs.mkdirSync('./data', { recursive: true });
     }
@@ -188,17 +189,12 @@ function requireAuth(req, res, next) {
     }
 }
 
-// ==================== IMPORT RUTE ====================
-const authRoutes = require('./auth')(db);
-const masiniRoutes = require('./masini')(db, requireAuth);
-const alimentariRoutes = require('./alimentari')(db, requireAuth);
-const documenteRoutes = require('./documente')(db, requireAuth);
-const echipamenteRoutes = require('./echipamente')(db, requireAuth);
-const reviziiRoutes = require('./revizii')(db, requireAuth);
-const alerteRoutes = require('./alerte')(db, requireAuth);
-const dashboardRoutes = require('./dashboard')(db, requireAuth);
+// ==================== RUTE DE BAZĂ ====================
 
-// ==================== RUTE ====================
+// Ruta principală - servește frontend-ul
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -209,70 +205,190 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Ruta principală
-app.get('/', (req, res) => {
-    res.send(`
-        <html>
-        <head><title>Management Flotă</title></head>
-        <body style="font-family: Arial; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center;">
-            <div style="background: white; padding: 40px; border-radius: 15px; text-align: center; box-shadow: 0 15px 35px rgba(0,0,0,0.1);">
-                <h1 style="color: #4361ee;">✅ APLICAȚIA FUNCȚIONEAZĂ!</h1>
-                <p><strong>Serverul rulează pe portul ${PORT}</strong></p>
-                <p>Environment: ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}</p>
-                <a href="/login" style="display: inline-block; background: #4361ee; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; margin-top: 15px;">👉 Mergi la Login</a>
-            </div>
-        </body>
-        </html>
-    `);
+// ==================== RUTE AUTH ====================
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username și parolă sunt obligatorii' });
+    }
+    
+    db.get(
+        'SELECT * FROM users WHERE username = ? AND status = "activ"',
+        [username],
+        (err, user) => {
+            if (err) {
+                console.error('Eroare login:', err);
+                return res.status(500).json({ error: 'Eroare server' });
+            }
+            
+            if (!user) {
+                return res.status(401).json({ error: 'Username sau parolă incorectă' });
+            }
+            
+            if (bcrypt.compareSync(password, user.password_hash)) {
+                req.session.user = {
+                    id: user.id,
+                    username: user.username,
+                    nume: user.nume,
+                    is_admin: user.is_admin
+                };
+                res.json({ 
+                    success: true, 
+                    message: 'Autentificare reușită!',
+                    user: req.session.user
+                });
+            } else {
+                res.status(401).json({ error: 'Username sau parolă incorectă' });
+            }
+        }
+    );
 });
 
-// Pagina de login
-app.get('/login', (req, res) => {
-    res.send(`
-        <html>
-        <head><title>Login</title></head>
-        <body style="font-family: Arial; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center;">
-            <div style="background: white; padding: 40px; border-radius: 15px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); max-width: 400px; width: 100%;">
-                <h1 style="color: #4361ee; text-align: center;">🔐 Autentificare</h1>
-                <form action="/api/login" method="POST">
-                    <div style="margin-bottom: 20px;">
-                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Username:</label>
-                        <input type="text" name="username" required placeholder="Tzrkalex" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px;">
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Parolă:</label>
-                        <input type="password" name="password" required placeholder="••••••••" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px;">
-                    </div>
-                    <button type="submit" style="width: 100%; background: #4361ee; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold;">Autentificare</button>
-                </form>
-                <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; margin-top: 20px; text-align: center;">
-                    <strong>Cont test:</strong><br>
-                    <strong>User:</strong> Tzrkalex<br>
-                    <strong>Parolă:</strong> Ro27821091
-                </div>
-            </div>
-        </body>
-        </html>
-    `);
+app.post('/api/logout', (req, res) => {
+    req.session.destroy((err) => {
+        if (err) return res.status(500).json({ error: 'Eroare la logout' });
+        res.json({ success: true, message: 'Delogare reușită' });
+    });
 });
 
-// Înregistrare rute API
-app.use('/api', authRoutes);
-app.use('/api', masiniRoutes);
-app.use('/api', alimentariRoutes);
-app.use('/api', documenteRoutes);
-app.use('/api', echipamenteRoutes);
-app.use('/api', reviziiRoutes);
-app.use('/api', alerteRoutes);
-app.use('/api', dashboardRoutes);
-
-// Ruta pentru a verifica sesiunea (pentru frontend)
-app.get('/api/check-session', (req, res) => {
+app.get('/api/check-auth', (req, res) => {
     if (req.session.user) {
         res.json({ authenticated: true, user: req.session.user });
     } else {
         res.json({ authenticated: false });
     }
+});
+
+// ==================== RUTE MASINI ====================
+app.get('/api/masini', requireAuth, (req, res) => {
+    db.all('SELECT * FROM masini ORDER BY numar_inmatriculare', (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json({ masini: rows });
+    });
+});
+
+app.get('/api/masini/:id', requireAuth, (req, res) => {
+    const masinaId = req.params.id;
+    db.get('SELECT * FROM masini WHERE id = ?', [masinaId], (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        if (!row) {
+            return res.status(404).json({ error: 'Mașina nu a fost găsită' });
+        }
+        res.json({ masina: row });
+    });
+});
+
+app.post('/api/masini', requireAuth, (req, res) => {
+    const { numar_inmatriculare, marca, model, an_fabricatie, tip_combustibil, culoare, serie_sasiu } = req.body;
+    
+    if (!numar_inmatriculare || !marca || !model) {
+        return res.status(400).json({ error: 'Număr înmatriculare, marcă și model sunt obligatorii' });
+    }
+    
+    db.run(
+        `INSERT INTO masini (numar_inmatriculare, marca, model, an_fabricatie, tip_combustibil, culoare, serie_sasiu) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [numar_inmatriculare, marca, model, an_fabricatie, tip_combustibil, culoare, serie_sasiu],
+        function(err) {
+            if (err) {
+                if (err.code === 'SQLITE_CONSTRAINT') {
+                    return res.status(400).json({ error: 'Numărul de înmatriculare există deja' });
+                }
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            res.json({ 
+                success: true,
+                message: 'Mașină adăugată cu succes!',
+                id: this.lastID 
+            });
+        }
+    );
+});
+
+// ==================== RUTE ALERTE ====================
+app.get('/api/alerte-expirare', requireAuth, (req, res) => {
+    db.all(
+        `SELECT m.numar_inmatriculare, m.marca, m.model, d.tip_document, d.data_expirare,
+                CASE 
+                    WHEN date(d.data_expirare) < date('now') THEN 'expirat'
+                    WHEN date(d.data_expirare) <= date('now', '+30 days') THEN 'expira_curand'
+                    ELSE 'ok'
+                END as status_alert
+         FROM documente d
+         JOIN masini m ON d.masina_id = m.id
+         WHERE d.data_expirare <= date('now', '+30 days')
+         ORDER BY d.data_expirare ASC`,
+        (err, rows) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            res.json({ alerte: rows });
+        }
+    );
+});
+
+// ==================== RUTE DASHBOARD ====================
+app.get('/api/masini/:id/dashboard', requireAuth, (req, res) => {
+    const masinaId = req.params.id;
+    
+    const dashboardData = {};
+    
+    // Informații de bază despre mașină
+    db.get('SELECT * FROM masini WHERE id = ?', [masinaId], (err, masina) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        dashboardData.masina = masina;
+        
+        // Ultima alimentare și consum
+        db.get(
+            `SELECT km_curent, consum_mediu, data_alimentare 
+             FROM alimentari 
+             WHERE masina_id = ? AND consum_mediu IS NOT NULL 
+             ORDER BY data_alimentare DESC LIMIT 1`,
+            [masinaId],
+            (err, alimentare) => {
+                dashboardData.ultima_alimentare = alimentare;
+                
+                // Statistici consum ultimele 10 alimentări
+                db.all(
+                    `SELECT consum_mediu, km_parcursi, cantitate_litri, cost_total, data_alimentare
+                     FROM alimentari 
+                     WHERE masina_id = ? AND consum_mediu IS NOT NULL 
+                     ORDER BY data_alimentare DESC LIMIT 10`,
+                    [masinaId],
+                    (err, alimentari) => {
+                        dashboardData.istoric_consum = alimentari;
+                        
+                        // Calcul consum mediu general
+                        const consumMediu = alimentari.reduce((acc, curr) => acc + curr.consum_mediu, 0) / alimentari.length;
+                        dashboardData.consum_mediu_general = consumMediu;
+                        
+                        res.json(dashboardData);
+                    }
+                );
+            }
+        );
+    });
+});
+
+// Ruta pentru test notificare
+app.post('/api/test-notificare', requireAuth, (req, res) => {
+    // Această funcție ar putea fi extinsă pentru a integra cu Telegram
+    res.json({ 
+        success: true, 
+        message: 'Funcționalitatea notificărilor va fi implementată în curând' 
+    });
 });
 
 // Start server
