@@ -1,0 +1,46 @@
+function initDatabase() {
+    // ... restul tabelelor ...
+
+    // Tabel mașini - CORECTAT
+    db.run(`
+        CREATE TABLE IF NOT EXISTS masini (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numar_inmatriculare TEXT UNIQUE NOT NULL,
+            marca TEXT NOT NULL,
+            model TEXT NOT NULL,
+            an_fabricatie INTEGER,
+            tip_combustibil TEXT,
+            km_curent INTEGER DEFAULT 0,
+            km_ultima_revizie INTEGER DEFAULT 0,
+            consum_mediu REAL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_by INTEGER,
+            FOREIGN KEY (created_by) REFERENCES users (id)
+        )
+    `, (err) => {
+        if (err) console.error('Eroare creare tabel masini:', err);
+        else {
+            console.log('✅ Tabel masini creat');
+            // Verificăm dacă coloana created_by există, dacă nu, o adăugăm
+            db.get("PRAGMA table_info(masini)", (err, rows) => {
+                if (err) {
+                    console.error('Eroare la verificarea coloanelor:', err);
+                } else {
+                    const hasCreatedBy = rows.some(col => col.name === 'created_by');
+                    if (!hasCreatedBy) {
+                        console.log('Adaug coloana created_by în tabelul masini...');
+                        db.run("ALTER TABLE masini ADD COLUMN created_by INTEGER", (err) => {
+                            if (err) {
+                                console.error('Eroare la adăugarea coloanei created_by:', err);
+                            } else {
+                                console.log('✅ Coloana created_by adăugată cu succes');
+                            }
+                        });
+                    }
+                }
+            });
+        }
+    });
+
+    // ... restul tabelelor ...
+}
