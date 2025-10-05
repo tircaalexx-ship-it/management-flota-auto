@@ -1,7 +1,7 @@
 ﻿{
   "name": "management-flota-auto",
   "version": "1.0.0",
-  "description": "Sistem de management pentru flota auto",
+  "description": "Sistem de management pentru flota auto cu control acces",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
@@ -10,9 +10,13 @@
   "dependencies": {
     "express": "^4.18.2",
     "ejs": "^3.1.9",
-    "body-parser": "^1.20.2"
+    "body-parser": "^1.20.2",
+    "express-session": "^1.17.3"
   },
-  "keywords": ["flota", "auto", "management", "masini"],
-  "author": "Tirca Alexandru",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": ["flota", "auto", "management", "masini", "control-acces"],
+  "author": "Tzrkalex",
   "license": "MIT"
 }

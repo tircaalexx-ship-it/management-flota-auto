@@ -8,9 +8,5 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: JWT_SECRET
+      - key: SESSION_SECRET
         generateValue: true
-    disk:
-      name: data
-      mountPath: /tmp/data
-      sizeGB: 1
