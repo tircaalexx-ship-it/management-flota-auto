@@ -1,29 +1,21 @@
-// server.js - COD COMPLET CORECTAT PENTRU AUTENTIFICARE
+// server.js - SOLUȚIE CU JWT (FĂRĂ SESIUNI)
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
-const session = require('express-session');
+const jwt = require('jsonwebtoken');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = 'flota-auto-jwt-secret-2024-super-secure';
 
-// Middleware IMPORTANT pentru sesiuni
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session middleware - CORECTAT
-app.use(session({
-    secret: 'flota-auto-secret-key-2024-super-secure',
-    resave: true,  // Schimbat în true
-    saveUninitialized: true,  // Schimbat în true
-    cookie: { 
-        secure: false,
-        maxAge: 24 * 60 * 60 * 1000,
-        httpOnly: true
-    }
-}));
+// Middleware pentru a servi fișiere statice
+app.use(express.static('public'));
 
 // Configurare baza de date
 const dbPath = './data/flota.db';
@@ -95,29 +87,41 @@ function createDefaultUser() {
     );
 }
 
-// Middleware autentificare ÎMBUNĂTĂȚIT
+// Middleware JWT auth
 function requireAuth(req, res, next) {
-    console.log('🔐 Verificare auth - Sesiune:', req.session.user);
+    const token = req.cookies?.token || req.headers.authorization?.replace('Bearer ', '');
     
-    if (req.session && req.session.user) {
-        console.log('✅ Utilizator autentificat:', req.session.user.username);
+    if (!token) {
+        return res.redirect('/login');
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;
         next();
-    } else {
-        console.log('❌ Utilizator neautentificat - redirect login');
-        res.redirect('/login');
+    } catch (error) {
+        console.log('❌ Token invalid');
+        res.clearCookie('token');
+        return res.redirect('/login');
     }
 }
 
 // ==================== RUTE PAGINI ====================
 
-// Pagina de login - SIMPLIFICATĂ
+// Pagina de login
 app.get('/login', (req, res) => {
-    // Dacă e deja logat, du-te direct la principală
-    if (req.session.user) {
-        return res.redirect('/');
+    // Verifică dacă există token valid în cookie
+    const token = req.cookies?.token;
+    if (token) {
+        try {
+            jwt.verify(token, JWT_SECRET);
+            return res.redirect('/');
+        } catch (error) {
+            // Token invalid, continuă cu login
+        }
     }
-    
-    const loginHTML = `
+
+    res.send(`
     <!DOCTYPE html>
     <html>
     <head>
@@ -213,11 +217,9 @@ app.get('/login', (req, res) => {
                 const password = document.getElementById('password').value;
                 const errorDiv = document.getElementById('errorMessage');
                 
-                // Ascunde eroarea anterioară
                 errorDiv.style.display = 'none';
                 
                 try {
-                    console.log('📤 Trimitere cerere login...');
                     const response = await fetch('/api/login', {
                         method: 'POST',
                         headers: { 
@@ -227,7 +229,6 @@ app.get('/login', (req, res) => {
                     });
                     
                     const data = await response.json();
-                    console.log('📥 Răspuns login:', data);
                     
                     if (data.success) {
                         console.log('✅ Login succes - redirect către principală');
@@ -243,24 +244,20 @@ app.get('/login', (req, res) => {
                 }
             });
 
-            // Auto-login după 500ms
+            // Auto-login după 1 secundă
             setTimeout(() => {
                 console.log('🔄 Auto-login...');
                 document.getElementById('loginForm').dispatchEvent(new Event('submit'));
-            }, 500);
+            }, 1000);
         </script>
     </body>
     </html>
-    `;
-    
-    res.send(loginHTML);
+    `);
 });
 
-// Pagina principală - ÎMBUNĂTĂȚITĂ
+// Pagina principală
 app.get('/', requireAuth, (req, res) => {
-    console.log('🏠 Accesare pagină principală - User:', req.session.user.username);
-    
-    const mainHTML = `
+    res.send(`
     <!DOCTYPE html>
     <html>
     <head>
@@ -349,17 +346,16 @@ app.get('/', requireAuth, (req, res) => {
         <div class="header">
             <h1>🚗 Management Flotă Auto</h1>
             <div class="user-info">
-                👤 ${req.session.user.nume} 
+                👤 ${req.user.nume} 
                 <button onclick="logout()" style="background: #e74c3c; margin-left: 10px; padding: 5px 10px; font-size: 12px;">🚪 Delogare</button>
             </div>
-            <p class="success">✅ Autentificat cu succes ca <strong>${req.session.user.username}</strong></p>
+            <p class="success">✅ Autentificat cu succes ca <strong>${req.user.username}</strong></p>
         </div>
 
         <div class="card">
             <h2>📋 Lista Mașinilor</h2>
             <button onclick="loadMasini()">🔄 Reîncarcă Lista</button>
             <button onclick="addSampleCars()" style="background: #27ae60;">🚙 Adaugă Mașini Exemplu</button>
-            <button onclick="testAPI()" style="background: #f39c12;">🧪 Testează API</button>
             <div id="lista-masini" style="margin-top: 20px;">
                 <p>⏳ Se încarcă mașinile...</p>
             </div>
@@ -376,49 +372,52 @@ app.get('/', requireAuth, (req, res) => {
         </div>
 
         <script>
-            console.log('🔧 Inițializare pagină principală...');
-
             // Încarcă mașinile imediat
             loadMasini();
 
             function loadMasini() {
-                console.log('📥 Încărcare mașini...');
-                fetch('/api/masini')
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Eroare HTTP: ' + response.status);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log('✅ Date mașini primite:', data);
-                        const container = document.getElementById('lista-masini');
-                        
-                        if (!data.masini || data.masini.length === 0) {
-                            container.innerHTML = '<p>🚗 Nu există mașini în baza de date. Adaugă prima mașină!</p>';
-                            return;
-                        }
-                        
-                        container.innerHTML = data.masini.map(masina => \`
-                            <div class="masina-item">
-                                <div>
-                                    <strong style="font-size: 16px;">\${masina.numar_inmatriculare}</strong> 
-                                    - \${masina.marca} \${masina.model}
-                                    \${masina.culoare ? '<span style="color: #666;">• ' + masina.culoare + '</span>' : ''}
-                                </div>
-                                <button onclick="deleteMasina(\${masina.id})" style="background: #e74c3c;">🗑️ Șterge</button>
+                fetch('/api/masini', {
+                    headers: {
+                        'Authorization': 'Bearer ' + getToken()
+                    }
+                })
+                .then(response => {
+                    if (response.status === 401) {
+                        logout();
+                        return;
+                    }
+                    if (!response.ok) {
+                        throw new Error('Eroare HTTP: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const container = document.getElementById('lista-masini');
+                    
+                    if (!data.masini || data.masini.length === 0) {
+                        container.innerHTML = '<p>🚗 Nu există mașini în baza de date. Adaugă prima mașină!</p>';
+                        return;
+                    }
+                    
+                    container.innerHTML = data.masini.map(masina => \`
+                        <div class="masina-item">
+                            <div>
+                                <strong style="font-size: 16px;">\${masina.numar_inmatriculare}</strong> 
+                                - \${masina.marca} \${masina.model}
+                                \${masina.culoare ? '<span style="color: #666;">• ' + masina.culoare + '</span>' : ''}
                             </div>
-                        \`).join('');
-                    })
-                    .catch(error => {
-                        console.error('❌ Eroare la încărcare mașini:', error);
-                        document.getElementById('lista-masini').innerHTML = 
-                            '<p style="color: #e74c3c;">❌ Eroare la încărcarea mașinilor: ' + error.message + '</p>';
-                    });
+                            <button onclick="deleteMasina(\${masina.id})" style="background: #e74c3c;">🗑️ Șterge</button>
+                        </div>
+                    \`).join('');
+                })
+                .catch(error => {
+                    console.error('❌ Eroare la încărcare mașini:', error);
+                    document.getElementById('lista-masini').innerHTML = 
+                        '<p style="color: #e74c3c;">❌ Eroare la încărcarea mașinilor: ' + error.message + '</p>';
+                });
             }
 
             function addSampleCars() {
-                console.log('🚗 Adăugare mașini exemplu...');
                 const sampleCars = [
                     { numar_inmatriculare: "GJ07ZR", marca: "BMW", model: "740XD", culoare: "Negru" },
                     { numar_inmatriculare: "B123ABC", marca: "Volkswagen", model: "Golf", culoare: "Alb" },
@@ -428,13 +427,15 @@ app.get('/', requireAuth, (req, res) => {
                 let promises = sampleCars.map(car => {
                     return fetch('/api/masini', {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getToken()
+                        },
                         body: JSON.stringify(car)
                     }).then(r => r.json());
                 });
 
                 Promise.all(promises).then(results => {
-                    console.log('✅ Rezultate adăugare:', results);
                     loadMasini();
                     alert('✅ ' + results.filter(r => r.success).length + ' mașini exemplu adăugate cu succes!');
                 });
@@ -442,44 +443,53 @@ app.get('/', requireAuth, (req, res) => {
 
             function deleteMasina(id) {
                 if (confirm('Sigur dorești să ștergi această mașină?')) {
-                    fetch('/api/masini/' + id, { method: 'DELETE' })
-                        .then(r => r.json())
-                        .then(data => {
-                            if (data.success) {
-                                loadMasini();
-                                alert('✅ Mașină ștearsă cu succes!');
-                            } else {
-                                alert('❌ Eroare la ștergere: ' + data.error);
-                            }
-                        })
-                        .catch(error => {
-                            alert('❌ Eroare: ' + error.message);
-                        });
+                    fetch('/api/masini/' + id, { 
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': 'Bearer ' + getToken()
+                        }
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            loadMasini();
+                            alert('✅ Mașină ștearsă cu succes!');
+                        } else {
+                            alert('❌ Eroare la ștergere: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        alert('❌ Eroare: ' + error.message);
+                    });
                 }
             }
 
-            function testAPI() {
-                console.log('🧪 Testare API...');
-                fetch('/api/health')
-                    .then(r => r.json())
-                    .then(data => {
-                        alert('✅ API funcționează: ' + data.message);
-                    })
-                    .catch(error => {
-                        alert('❌ Eroare API: ' + error.message);
-                    });
+            function getToken() {
+                // Încearcă să obții token din cookie
+                const cookies = document.cookie.split(';');
+                for (let cookie of cookies) {
+                    const [name, value] = cookie.trim().split('=');
+                    if (name === 'token') return value;
+                }
+                return '';
             }
 
             function logout() {
-                console.log('🚪 Delogare...');
-                fetch('/api/logout', { method: 'POST' })
-                    .then(() => {
-                        window.location.href = '/login';
-                    })
-                    .catch(error => {
-                        console.error('Eroare logout:', error);
-                        window.location.href = '/login';
-                    });
+                fetch('/api/logout', { 
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + getToken()
+                    }
+                })
+                .then(() => {
+                    // Șterge cookie-ul
+                    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                    window.location.href = '/login';
+                })
+                .catch(error => {
+                    console.error('Eroare logout:', error);
+                    window.location.href = '/login';
+                });
             }
 
             // Formular adăugare mașină
@@ -492,21 +502,25 @@ app.get('/', requireAuth, (req, res) => {
                     model: document.getElementById('model').value
                 };
                 
-                console.log('📤 Adăugare mașină:', masina);
-                
                 fetch('/api/masini', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getToken()
+                    },
                     body: JSON.stringify(masina)
                 })
                 .then(response => {
+                    if (response.status === 401) {
+                        logout();
+                        return;
+                    }
                     if (!response.ok) {
                         throw new Error('Eroare HTTP: ' + response.status);
                     }
                     return response.json();
                 })
                 .then(data => {
-                    console.log('✅ Răspuns adăugare mașină:', data);
                     if (data.success) {
                         document.getElementById('form-masina').reset();
                         loadMasini();
@@ -520,19 +534,15 @@ app.get('/', requireAuth, (req, res) => {
                     alert('❌ Eroare: ' + error.message);
                 });
             });
-
-            console.log('🔧 Pagina principală încărcată complet');
         </script>
     </body>
     </html>
-    `;
-    
-    res.send(mainHTML);
+    `);
 });
 
-// ==================== RUTE API ÎMBUNĂTĂȚITE ====================
+// ==================== RUTE API ====================
 
-// Login API - CORECTAT
+// Login API CU JWT
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     
@@ -554,24 +564,31 @@ app.post('/api/login', (req, res) => {
         }
         
         if (bcrypt.compareSync(password, user.password_hash)) {
-            // Setează sesiunea
-            req.session.user = {
-                id: user.id,
-                username: user.username,
-                nume: user.nume,
-                is_admin: user.is_admin
-            };
+            // Generează JWT token
+            const token = jwt.sign(
+                {
+                    id: user.id,
+                    username: user.username,
+                    nume: user.nume,
+                    is_admin: user.is_admin
+                },
+                JWT_SECRET,
+                { expiresIn: '24h' }
+            );
             
-            console.log('✅ Login succes pentru:', username, 'Sesiune:', req.session.user);
+            console.log('✅ Login succes pentru:', username);
             
-            // Salvează sesiunea
-            req.session.save((err) => {
-                if (err) {
-                    console.error('❌ Eroare salvare sesiune:', err);
-                    return res.status(500).json({ error: 'Eroare sesiune' });
-                }
-                console.log('✅ Sesiune salvată pentru:', username);
-                res.json({ success: true, message: 'Autentificare reușită!' });
+            // Setează cookie cu token
+            res.cookie('token', token, {
+                httpOnly: false, // Pentru a putea fi citit de JavaScript
+                secure: false, // Setează true pentru HTTPS
+                maxAge: 24 * 60 * 60 * 1000 // 24 de ore
+            });
+            
+            res.json({ 
+                success: true, 
+                message: 'Autentificare reușită!',
+                token: token // Trimite și în răspuns pentru backup
             });
         } else {
             console.log('❌ Parolă incorectă pentru:', username);
@@ -582,20 +599,14 @@ app.post('/api/login', (req, res) => {
 
 // Logout API
 app.post('/api/logout', (req, res) => {
-    console.log('🚪 Logout pentru:', req.session.user?.username);
-    req.session.destroy((err) => {
-        if (err) {
-            console.error('❌ Eroare logout:', err);
-            return res.status(500).json({ error: 'Eroare logout' });
-        }
-        console.log('✅ Logout succes');
-        res.json({ success: true, message: 'Delogare reușită' });
-    });
+    console.log('🚪 Logout');
+    res.clearCookie('token');
+    res.json({ success: true, message: 'Delogare reușită' });
 });
 
 // Rute mașini API
 app.get('/api/masini', requireAuth, (req, res) => {
-    console.log('📥 Cerere mașini de la:', req.session.user.username);
+    console.log('📥 Cerere mașini de la:', req.user.username);
     db.all('SELECT * FROM masini ORDER BY numar_inmatriculare', (err, rows) => {
         if (err) {
             console.error('❌ Eroare baza de date mașini:', err);
@@ -609,7 +620,7 @@ app.get('/api/masini', requireAuth, (req, res) => {
 app.post('/api/masini', requireAuth, (req, res) => {
     const { numar_inmatriculare, marca, model, culoare } = req.body;
     
-    console.log('📤 Adăugare mașină:', { numar_inmatriculare, marca, model, user: req.session.user.username });
+    console.log('📤 Adăugare mașină:', { numar_inmatriculare, marca, model, user: req.user.username });
     
     if (!numar_inmatriculare || !marca || !model) {
         return res.status(400).json({ error: 'Număr înmatriculare, marcă și model sunt obligatorii' });
@@ -634,7 +645,7 @@ app.post('/api/masini', requireAuth, (req, res) => {
 
 app.delete('/api/masini/:id', requireAuth, (req, res) => {
     const id = req.params.id;
-    console.log('🗑️ Ștergere mașină ID:', id, 'de către:', req.session.user.username);
+    console.log('🗑️ Ștergere mașină ID:', id, 'de către:', req.user.username);
     
     db.run('DELETE FROM masini WHERE id = ?', [id], function(err) {
         if (err) {
@@ -656,21 +667,8 @@ app.get('/api/health', (req, res) => {
         status: 'OK', 
         message: 'Serverul funcționează perfect!',
         timestamp: new Date().toISOString(),
-        port: PORT,
-        user: req.session.user || 'neautentificat'
+        port: PORT
     });
-});
-
-// Verificare autentificare
-app.get('/api/check-auth', (req, res) => {
-    if (req.session.user) {
-        res.json({ 
-            authenticated: true, 
-            user: req.session.user 
-        });
-    } else {
-        res.json({ authenticated: false });
-    }
 });
 
 // Pornire server
@@ -680,6 +678,7 @@ app.listen(PORT, () => {
     console.log(`📍 Accesează: http://localhost:${PORT}`);
     console.log('🔐 User: Tzrkalex');
     console.log('🔑 Parola: Ro27821091');
+    console.log('🔒 Autentificare: JWT Tokens');
     console.log('💾 Baza de date:', dbPath);
     console.log('🚀 ========================================');
 });
