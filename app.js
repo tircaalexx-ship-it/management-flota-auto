@@ -218,6 +218,40 @@ function addSampleData() {
                         'INSERT OR IGNORE INTO setari_revizii (masina_id, interval_km) VALUES (?, ?)',
                         [masinaId, 10000]
                     );
+
+                    // Adaugă documente exemplu pentru prima mașină (GJ07ZR)
+                    if (car.numar_inmatriculare === "GJ07ZR") {
+                        const today = new Date();
+                        const nextYear = new Date(today);
+                        nextYear.setFullYear(today.getFullYear() + 1);
+                        
+                        const documenteExemplu = [
+                            {
+                                tip_document: 'RCA',
+                                numar_document: 'RCA123456',
+                                data_emitere: today.toISOString().split('T')[0],
+                                data_expirare: nextYear.toISOString().split('T')[0],
+                                cost: 850.50,
+                                furnizor: 'Euroins'
+                            },
+                            {
+                                tip_document: 'ITP',
+                                numar_document: 'ITP789012',
+                                data_emitere: today.toISOString().split('T')[0],
+                                data_expirare: nextYear.toISOString().split('T')[0],
+                                cost: 120.00,
+                                furnizor: 'Service Auto'
+                            }
+                        ];
+
+                        documenteExemplu.forEach(doc => {
+                            db.run(
+                                'INSERT INTO documente (masina_id, tip_document, numar_document, data_emitere, data_expirare, cost, furnizor) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                                [masinaId, doc.tip_document, doc.numar_document, doc.data_emitere, doc.data_expirare, doc.cost, doc.furnizor]
+                            );
+                        });
+                        console.log('✅ Documente exemplu adăugate pentru mașina GJ07ZR');
+                    }
                 }
             }
         );
@@ -357,7 +391,10 @@ app.get('/', requireAuth, (req, res) => {
             .table th, .table td { padding: 10px; border: 1px solid #ddd; text-align: left; }
             .table th { background: #f8f9fa; }
             .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
-            .modal-content { background: white; margin: 5% auto; padding: 20px; border-radius: 10px; width: 90%; max-width: 500px; }
+            .modal-content { background: white; margin: 5% auto; padding: 20px; border-radius: 10px; width: 90%; max-width: 600px; }
+            .document-expirat { background: #ffcccc !important; }
+            .document-expira-curand { background: #fff3cd !important; }
+            .document-ok { background: #d4edda !important; }
         </style>
     </head>
     <body>
@@ -553,12 +590,13 @@ app.get('/', requireAuth, (req, res) => {
             </div>
         </div>
 
-        <!-- Modal Document -->
+        <!-- Modal Document ÎMBUNĂTĂȚIT -->
         <div id="modalDocument" class="modal">
             <div class="modal-content">
                 <h2>📄 Adaugă Document</h2>
                 <form id="form-document">
                     <input type="hidden" id="document-masina-id">
+                    
                     <div class="form-group">
                         <label>Tip Document *</label>
                         <select id="document-tip" required>
@@ -568,30 +606,46 @@ app.get('/', requireAuth, (req, res) => {
                             <option value="CASCO">Asigurare CASCO</option>
                             <option value="Vigneta">Vignetă</option>
                             <option value="Rovinieta">Rovinietă</option>
+                            <option value="Carte Auto">Carte Auto</option>
+                            <option value="Talon">Talon</option>
+                            <option value="Permis">Permis de Conducere</option>
+                            <option value="Altele">Altele</option>
                         </select>
                     </div>
+                    
                     <div class="form-group">
                         <label>Număr Document</label>
-                        <input type="text" id="document-numar">
+                        <input type="text" id="document-numar" placeholder="Ex: X123456">
                     </div>
-                    <div class="form-group">
-                        <label>Data Emitere</label>
-                        <input type="date" id="document-emitere">
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label>Data Emitere</label>
+                            <input type="date" id="document-emitere">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Data Expirare *</label>
+                            <input type="date" id="document-expirare" required>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Data Expirare *</label>
-                        <input type="date" id="document-expirare" required>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label>Cost (RON)</label>
+                            <input type="number" step="0.01" id="document-cost" placeholder="0.00">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Furnizor</label>
+                            <input type="text" id="document-furnizor" placeholder="Nume furnizor">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Cost (RON)</label>
-                        <input type="number" step="0.01" id="document-cost">
+                    
+                    <div style="margin-top: 20px; display: flex; gap: 10px;">
+                        <button type="submit" class="btn btn-success">✅ Salvează Document</button>
+                        <button type="button" class="btn btn-danger" onclick="closeModal('modalDocument')">❌ Anulează</button>
                     </div>
-                    <div class="form-group">
-                        <label>Furnizor</label>
-                        <input type="text" id="document-furnizor">
-                    </div>
-                    <button type="submit" class="btn btn-success">✅ Salvează</button>
-                    <button type="button" class="btn btn-danger" onclick="closeModal('modalDocument')">❌ Anulează</button>
                 </form>
             </div>
         </div>
@@ -762,7 +816,7 @@ app.get('/', requireAuth, (req, res) => {
                 document.getElementById('revizie-data').valueAsDate = new Date();
             }
             
-            // Funcții documente
+            // ==================== FUNCȚII DOCUMENTE - VERZIUNE ÎMBUNĂTĂȚITĂ ====================
             function loadDocumenteMasina() {
                 const masinaId = document.getElementById('select-masina-documente').value;
                 if (!masinaId) return;
@@ -770,7 +824,10 @@ app.get('/', requireAuth, (req, res) => {
                 document.getElementById('document-masina-id').value = masinaId;
                 
                 fetch(\`/api/masini/\${masinaId}/documente\`)
-                .then(r => r.json())
+                .then(r => {
+                    if (!r.ok) throw new Error('Eroare la încărcarea documentelor');
+                    return r.json();
+                })
                 .then(data => {
                     const container = document.getElementById('documente-content');
                     const documente = data.documente || [];
@@ -780,26 +837,60 @@ app.get('/', requireAuth, (req, res) => {
                         return;
                     }
                     
-                    let html = '<table class="table"><tr><th>Tip</th><th>Număr</th><th>Expiră</th><th>Cost</th><th>Furnizor</th></tr>';
+                    let html = \`
+                    <table class="table">
+                        <tr>
+                            <th>Tip</th>
+                            <th>Număr</th>
+                            <th>Emitere</th>
+                            <th>Expiră</th>
+                            <th>Zile rămase</th>
+                            <th>Cost</th>
+                            <th>Furnizor</th>
+                            <th>Acțiuni</th>
+                        </tr>
+                    \`;
+                    
                     documente.forEach(d => {
                         const expirare = new Date(d.data_expirare);
                         const today = new Date();
                         const diffTime = expirare - today;
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        let style = '';
-                        if (diffDays < 0) style = 'background: #ffcccc';
-                        else if (diffDays < 30) style = 'background: #fff3cd';
                         
-                        html += \`<tr style="\${style}">
-                            <td>\${d.tip_document}</td>
+                        let clasaCss = 'document-ok';
+                        let statusText = '';
+                        if (diffDays < 0) {
+                            clasaCss = 'document-expirat';
+                            statusText = \`<span style="color: red; font-weight: bold;">EXPIRAT (\${Math.abs(diffDays)} zile)</span>\`;
+                        } else if (diffDays < 30) {
+                            clasaCss = 'document-expira-curand';
+                            statusText = \`<span style="color: orange; font-weight: bold;">\${diffDays} zile</span>\`;
+                        } else {
+                            statusText = \`<span style="color: green;">\${diffDays} zile</span>\`;
+                        }
+                        
+                        html += \`
+                        <tr class="\${clasaCss}">
+                            <td><strong>\${d.tip_document}</strong></td>
                             <td>\${d.numar_document || '-'}</td>
+                            <td>\${d.data_emitere ? new Date(d.data_emitere).toLocaleDateString() : '-'}</td>
                             <td>\${expirare.toLocaleDateString()}</td>
-                            <td>\${d.cost || '-'}RON</td>
+                            <td>\${statusText}</td>
+                            <td>\${d.cost ? d.cost + ' RON' : '-'}</td>
                             <td>\${d.furnizor || '-'}</td>
+                            <td>
+                                <button class="btn btn-danger" onclick="deleteDocument(\${d.id})" title="Șterge document">
+                                    🗑️
+                                </button>
+                            </td>
                         </tr>\`;
                     });
                     html += '</table>';
                     container.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Eroare:', error);
+                    document.getElementById('documente-content').innerHTML = '<p style="color: red;">Eroare la încărcarea documentelor: ' + error.message + '</p>';
                 });
             }
             
@@ -809,10 +900,41 @@ app.get('/', requireAuth, (req, res) => {
                     alert('Selectează mai întâi o mașină!');
                     return;
                 }
+                
+                // Resetează formularul
+                document.getElementById('form-document').reset();
+                
+                // Setează data expirării implicită (peste 1 an)
+                const nextYear = new Date();
+                nextYear.setFullYear(nextYear.getFullYear() + 1);
+                document.getElementById('document-expirare').valueAsDate = nextYear;
+                
+                // Setează data emiterii implicită (azi)
+                document.getElementById('document-emitere').valueAsDate = new Date();
+                
                 document.getElementById('modalDocument').style.display = 'block';
-                const nextMonth = new Date();
-                nextMonth.setMonth(nextMonth.getMonth() + 1);
-                document.getElementById('document-expirare').valueAsDate = nextMonth;
+            }
+            
+            function deleteDocument(documentId) {
+                if (!confirm('Sigur vrei să ștergi acest document? Această acțiune este ireversibilă.')) {
+                    return;
+                }
+                
+                fetch('/api/documente/' + documentId, { 
+                    method: 'DELETE' 
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        loadDocumenteMasina();
+                        alert('Document șters cu succes!');
+                    } else {
+                        alert('Eroare la ștergere: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('Eroare la ștergere: ' + error.message);
+                });
             }
             
             // Funcții rapoarte
@@ -972,34 +1094,62 @@ app.get('/', requireAuth, (req, res) => {
                     });
                 });
                 
-                // Form document
+                // ==================== FORMULAR DOCUMENTE - VERZIUNE CORECTATĂ ====================
                 document.getElementById('form-document').addEventListener('submit', function(e) {
                     e.preventDefault();
-                    const document = {
-                        tip_document: document.getElementById('document-tip').value,
-                        numar_document: document.getElementById('document-numar').value,
-                        data_emitere: document.getElementById('document-emitere').value,
-                        data_expirare: document.getElementById('document-expirare').value,
-                        cost: document.getElementById('document-cost').value ? parseFloat(document.getElementById('document-cost').value) : null,
-                        furnizor: document.getElementById('document-furnizor').value
-                    };
                     
                     const masinaId = document.getElementById('document-masina-id').value;
+                    const tipDocument = document.getElementById('document-tip').value;
+                    const numarDocument = document.getElementById('document-numar').value;
+                    const dataEmitere = document.getElementById('document-emitere').value;
+                    const dataExpirare = document.getElementById('document-expirare').value;
+                    const cost = document.getElementById('document-cost').value;
+                    const furnizor = document.getElementById('document-furnizor').value;
+                    
+                    // Validare frontend
+                    if (!tipDocument) {
+                        alert('Tipul documentului este obligatoriu!');
+                        return;
+                    }
+                    if (!dataExpirare) {
+                        alert('Data expirării este obligatorie!');
+                        return;
+                    }
+                    
+                    const documentData = {
+                        tip_document: tipDocument,
+                        numar_document: numarDocument || null,
+                        data_emitere: dataEmitere || null,
+                        data_expirare: dataExpirare,
+                        cost: cost ? parseFloat(cost) : null,
+                        furnizor: furnizor || null
+                    };
+                    
+                    console.log('Trimit document:', documentData);
                     
                     fetch(\`/api/masini/\${masinaId}/documente\`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(document)
+                        body: JSON.stringify(documentData)
                     })
-                    .then(r => r.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(err => { throw new Error(err.error || 'Eroare server'); });
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         if (data.success) {
                             closeModal('modalDocument');
                             loadDocumenteMasina();
-                            alert('Document adăugat!');
+                            alert('✓ Document adăugat cu succes!');
                         } else {
-                            alert('Eroare: ' + data.error);
+                            throw new Error(data.error || 'Eroare necunoscută');
                         }
+                    })
+                    .catch(error => {
+                        console.error('Eroare completă:', error);
+                        alert('❌ Eroare la adăugarea documentului: ' + error.message);
                     });
                 });
             });
@@ -1140,7 +1290,7 @@ app.post('/api/masini/:id/alimentari', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'Cantitate, cost și kilometraj sunt obligatorii' });
     }
     
-    calculeazaConsumSiKm(masinaId, km_curent, cantitate_litri, (kmParcursi, consumMediu) => {
+    calculeazaConsumSiKm(masinaId, km_curent, cantitateLitri, (kmParcursi, consumMediu) => {
         
         db.run(
             `INSERT INTO alimentari (masina_id, data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, km_parcursi, consum_mediu, locatie) 
@@ -1207,7 +1357,7 @@ app.post('/api/masini/:id/revizii', requireAuth, (req, res) => {
     );
 });
 
-// Rute documente
+// ==================== RUTE DOCUMENTE - VERZIUNE CORECTATĂ ====================
 app.get('/api/masini/:id/documente', requireAuth, (req, res) => {
     const masinaId = req.params.id;
     
@@ -1216,6 +1366,7 @@ app.get('/api/masini/:id/documente', requireAuth, (req, res) => {
         [masinaId],
         (err, rows) => {
             if (err) {
+                console.error('Eroare la obținerea documentelor:', err);
                 res.status(500).json({ error: err.message });
                 return;
             }
@@ -1226,28 +1377,68 @@ app.get('/api/masini/:id/documente', requireAuth, (req, res) => {
 
 app.post('/api/masini/:id/documente', requireAuth, (req, res) => {
     const masinaId = req.params.id;
-    const { tip_document, numar_document, data_emitere, data_expirare, cost, furnizor } = req.body;
+    const { tip_document, numar_document, data_emitere, data_expirare, cost, furnizor, observatii } = req.body;
     
-    if (!tip_document || !data_expirare) {
-        return res.status(400).json({ error: 'Tip document și data expirării sunt obligatorii' });
+    console.log('Date primite pentru document:', req.body);
+    
+    // Validare extinsă
+    if (!tip_document) {
+        return res.status(400).json({ error: 'Tipul documentului este obligatoriu' });
+    }
+    if (!data_expirare) {
+        return res.status(400).json({ error: 'Data expirării este obligatorie' });
+    }
+    if (!masinaId) {
+        return res.status(400).json({ error: 'ID-ul mașinii este obligatoriu' });
     }
     
-    db.run(
-        `INSERT INTO documente (masina_id, tip_document, numar_document, data_emitere, data_expirare, cost, furnizor) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [masinaId, tip_document, numar_document, data_emitere, data_expirare, cost, furnizor],
-        function(err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-                return;
-            }
-            res.json({ 
-                success: true,
-                message: 'Document înregistrat cu succes!',
-                id: this.lastID 
-            });
+    // Verifică dacă mașina există
+    db.get('SELECT id FROM masini WHERE id = ?', [masinaId], (err, masina) => {
+        if (err) {
+            console.error('Eroare la verificarea mașinii:', err);
+            return res.status(500).json({ error: 'Eroare internă la verificarea mașinii' });
         }
-    );
+        if (!masina) {
+            return res.status(404).json({ error: 'Mașina nu a fost găsită' });
+        }
+        
+        // Inserează documentul
+        db.run(
+            `INSERT INTO documente (masina_id, tip_document, numar_document, data_emitere, data_expirare, cost, furnizor, observatii) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [masinaId, tip_document, numar_document || null, data_emitere || null, data_expirare, cost || null, furnizor || null, observatii || null],
+            function(err) {
+                if (err) {
+                    console.error('Eroare la inserarea documentului:', err);
+                    res.status(500).json({ error: 'Eroare la salvarea documentului: ' + err.message });
+                    return;
+                }
+                
+                console.log('Document salvat cu succes, ID:', this.lastID);
+                res.json({ 
+                    success: true,
+                    message: 'Document înregistrat cu succes!',
+                    id: this.lastID 
+                });
+            }
+        );
+    });
+});
+
+// Ștergere document
+app.delete('/api/documente/:id', requireAuth, (req, res) => {
+    const documentId = req.params.id;
+    
+    db.run('DELETE FROM documente WHERE id = ?', [documentId], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json({ 
+            success: true,
+            message: 'Document șters cu succes!'
+        });
+    });
 });
 
 // Rute rapoarte
