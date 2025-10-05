@@ -1,25 +1,18 @@
 {
-  "name": "management-flota-auto",
-  "version": "1.0.0",
-  "description": "Sistem complet de management flotă auto",
-  "main": "app.js",
-  "scripts": {
-    "start": "node app.js",
-    "dev": "nodemon app.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "sqlite3": "^5.1.6",
-    "bcryptjs": "^2.4.3",
-    "express-session": "^1.17.3"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "keywords": ["flota", "auto", "management"],
-  "author": "Tzrkalex",
-  "license": "MIT"
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "System Disk",
+      "size": 500,
+      "type": "SSD"
+    },
+    {
+      "id": 2, 
+      "name": "Data Storage",
+      "size": 1000,
+      "type": "HDD"
+    }
+  ],
+  "count": 2
 }
