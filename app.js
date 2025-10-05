@@ -140,12 +140,12 @@ function createDefaultUser() {
     
     db.run(
         `INSERT OR IGNORE INTO users (username, password_hash, nume, email, is_admin) VALUES (?, ?, ?, ?, ?)`,
-        ['Tzrkalex', passwordHash, 'Alexandru Tirca', 'tzrkalex@example.com', 1],
+        ['Tzindex', passwordHash, 'Alexandru Tirca', 'tzindex@example.com', 1],
         function(err) {
             if (err) {
                 console.error('Eroare creare utilizator:', err);
             } else {
-                console.log('✅ Utilizator creat: Tzrkalex / Ro27821091');
+                console.log('✅ Utilizator creat: Tzindex / Ro27821091');
                 // Adaugă mașini exemplu la pornire
                 addSampleCars();
             }
@@ -216,14 +216,14 @@ app.get('/login', (req, res) => {
             <div class="error" id="errorMessage"></div>
             
             <form id="loginForm">
-                <input type="text" id="username" placeholder="Username" value="Tzrkalex" required>
+                <input type="text" id="username" placeholder="Username" value="Tzindex" required>
                 <input type="password" id="password" placeholder="Password" value="Ro27821091" required>
                 <button type="submit">ACCESEAZĂ SISTEMUL</button>
             </form>
             
             <div class="info">
                 <strong>Cont demo:</strong><br>
-                👤 <strong>User:</strong> Tzrkalex<br>
+                👤 <strong>User:</strong> Tzindex<br>
                 🔑 <strong>Parola:</strong> Ro27821091
             </div>
             
@@ -267,13 +267,18 @@ app.get('/login', (req, res) => {
                     errorDiv.style.display = 'block';
                 }
             });
+
+            // Auto-login pentru testing
+            setTimeout(() => {
+                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+            }, 500);
         </script>
     </body>
     </html>
     `);
 });
 
-// Pagina principală - scurtată pentru online
+// Pagina principală
 app.get('/', requireAuth, (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -610,7 +615,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📍 Port: ${PORT}`);
     console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log('💾 Baza de date:', dbPath);
-    console.log('🔐 User: Tzrkalex');
+    console.log('🔐 User: Tzindex');
     console.log('🔑 Parola: Ro27821091');
     console.log('🚀 ========================================');
 });
