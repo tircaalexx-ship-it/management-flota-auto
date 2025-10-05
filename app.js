@@ -2,15 +2,10 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
-const multer = require('multer');
-const csv = require('csv-parser');
 const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Configurare upload fișiere
-const upload = multer({ dest: 'uploads/' });
 
 // Middleware de bază
 app.use(express.json());
@@ -175,12 +170,12 @@ function createDefaultUser() {
     
     db.run(
         `INSERT OR IGNORE INTO users (username, password_hash, nume, email, is_admin) VALUES (?, ?, ?, ?, ?)`,
-        ['Tzindex', passwordHash, 'Alexandru Tirca', 'tzindex@example.com', 1],
+        ['Tzrkalex', passwordHash, 'Alexandru Tirca', 'tzrkalex@example.com', 1],
         function(err) {
             if (err) {
                 console.error('Eroare creare utilizator principal:', err);
             } else {
-                console.log('✅ Utilizator principal creat: Tzindex / Ro27821091');
+                console.log('✅ Utilizator principal creat: Tzrkalex / Ro27821091');
                 addSampleData();
             }
         }
@@ -191,89 +186,25 @@ function createDefaultUser() {
 function addSampleData() {
     const sampleCars = [
         { 
-            numar_inmatriculare: "GJ12TZR", 
-            marca: "FORD", 
-            model: "TRANSIT CUSTOM", 
-            tip_combustibil: "diesel", 
-            an_fabricatie: 2018,
+            numar_inmatriculare: "GJ17TZR", 
+            marca: "PEUGEOT", 
+            model: "EXPERT", 
+            tip_combustibil: "ELECTRIC", 
+            an_fabricatie: 2020,
             culoare: "ALB",
-            serie_sasiu: "WF0YXXTTGYFJ64185",
-            kilometraj_curent: 317879
-        },
-        { 
-            numar_inmatriculare: "GJ15TZR", 
-            marca: "FORD", 
-            model: "TRANSIT", 
-            tip_combustibil: "diesel", 
-            an_fabricatie: 2022,
-            culoare: "Alb",
-            kilometraj_curent: 312560
+            serie_sasiu: "VF3V1ZKXZMZ083957",
+            kilometraj_curent: 40000
         },
         { 
             numar_inmatriculare: "GJ09FAN", 
-            marca: "VW", 
-            model: "TRANSPORTER", 
+            marca: "Volkswagen", 
+            model: "Transporter", 
             tip_combustibil: "diesel", 
-            an_fabricatie: 2015,
+            an_fabricatie: 2016,
             culoare: "Alb",
-            kilometraj_curent: 154711
-        },
-        { 
-            numar_inmatriculare: "GJ39FAN", 
-            marca: "FORD", 
-            model: "TRANSIT CONECT", 
-            tip_combustibil: "diesel", 
-            an_fabricatie: 2008,
-            culoare: "Alb",
-            kilometraj_curent: 132711
-        },
-        { 
-            numar_inmatriculare: "GJ16FAN", 
-            marca: "FORD", 
-            model: "TRANSIT", 
-            tip_combustibil: "diesel", 
-            an_fabricatie: 2014,
-            culoare: "Alb",
-            kilometraj_curent: 287528
-        },
-        { 
-            numar_inmatriculare: "GJ39TZR", 
-            marca: "NISSAN", 
-            model: "NV-200", 
-            tip_combustibil: "ELECTRIC", 
-            an_fabricatie: 2022,
-            culoare: "Alb",
-            kilometraj_curent: 47528
-        },
-        { 
-            numar_inmatriculare: "GJ11TZR", 
-            marca: "FORD", 
-            model: "TRANSIT", 
-            tip_combustibil: "diesel", 
-            an_fabricatie: 2014,
-            culoare: "Alb",
-            kilometraj_curent: 371328
-        },
-        { 
-            numar_inmatriculare: "GJ43TZR", 
-            marca: "FORD", 
-            model: "TRANSIT", 
-            tip_combustibil: "electric", 
-            an_fabricatie: 2024,
-            culoare: "Alb",
-            kilometraj_curent: 50000
-        },
-        { 
-            numar_inmatriculare: "GJ08TZR", 
-            marca: "FORD", 
-            model: "TRANSIT", 
-            tip_combustibil: "diesel", 
-            an_fabricatie: 2014,
-            culoare: "Alb",
-            kilometraj_curent: 309909
+            kilometraj_curent: 154060
         }
-
-    ]
+    ];
 
     sampleCars.forEach(car => {
         db.run(
@@ -292,8 +223,8 @@ function addSampleData() {
                         [masinaId, 10000]
                     );
 
-                    // Adaugă documente exemplu pentru prima mașină (GJ07ZR)
-                    if (car.numar_inmatriculare === "GJ07ZR") {
+                    // Adaugă documente exemplu pentru prima mașină (GJ17TZR)
+                    if (car.numar_inmatriculare === "GJ17TZR") {
                         const today = new Date();
                         const nextYear = new Date(today);
                         nextYear.setFullYear(today.getFullYear() + 1);
@@ -323,7 +254,7 @@ function addSampleData() {
                                 [masinaId, doc.tip_document, doc.numar_document, doc.data_emitere, doc.data_expirare, doc.cost, doc.furnizor]
                             );
                         });
-                        console.log('✅ Documente exemplu adăugate pentru mașina GJ07ZR');
+                        console.log('✅ Documente exemplu adăugate pentru mașina GJ17TZR');
                     }
                 }
             }
@@ -396,6 +327,88 @@ function actualizeazaKilometrajMasina(masinaId, kmNou) {
     );
 }
 
+// ==================== FUNCȚII PROCESARE CSV ====================
+function parseCSV(csvText) {
+    const lines = csvText.split('\n');
+    const results = [];
+    
+    // Obține header-ul (prima linie)
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        const values = line.split(',').map(v => v.trim());
+        const row = {};
+        
+        headers.forEach((header, index) => {
+            row[header] = values[index] || '';
+        });
+        
+        results.push(row);
+    }
+    
+    return results;
+}
+
+function proceseazaRandCSV(row, index, callback) {
+    // Mapează diferite nume posibile de coloane
+    const numarInmatriculare = row.numar_inmatriculare || row.numar || row.inmatriculare || row.plate;
+    const dataAlimentare = row.data || row.data_alimentare || row.date || new Date().toISOString().split('T')[0];
+    const cantitate = parseFloat(row.cantitate_litri || row.cantitate || row.litri || row.liters);
+    const pretPerLitru = parseFloat(row.pret_litru || row.pret || row.pret_per_litru || row.price);
+    const costTotal = parseFloat(row.cost_total || row.cost || row.total);
+    const kilometraj = parseInt(row.kilometraj || row.km || row.kilometri || row.mileage);
+    const locatie = row.locatie || row.locatia || row.statie || row.location;
+    
+    if (!numarInmatriculare || isNaN(cantitate) || isNaN(costTotal) || isNaN(kilometraj)) {
+        callback(`Rând ${index + 1} invalid: date lipsă sau invalide`, null);
+        return;
+    }
+    
+    // Găsește mașina după număr de înmatriculare
+    db.get(
+        'SELECT id FROM masini WHERE numar_inmatriculare = ?',
+        [numarInmatriculare],
+        (err, masina) => {
+            if (err) {
+                callback(`Eroare la căutarea mașinii ${numarInmatriculare}: ${err.message}`, null);
+                return;
+            }
+            
+            if (!masina) {
+                callback(`Mașina cu numărul ${numarInmatriculare} nu a fost găsită`, null);
+                return;
+            }
+            
+            // Calculează consumul
+            calculeazaConsumSiKm(masina.id, kilometraj, cantitate, (kmParcursi, consumMediu) => {
+                
+                // Inserează alimentarea
+                db.run(
+                    `INSERT INTO alimentari (masina_id, data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, km_parcursi, consum_mediu, locatie, sincronizat_cu_oscar) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [masina.id, dataAlimentare, cantitate, costTotal, pretPerLitru || (costTotal / cantitate), kilometraj, kmParcursi, consumMediu, locatie, 1],
+                    function(err) {
+                        if (err) {
+                            callback(`Eroare la inserarea alimentării: ${err.message}`, null);
+                        } else {
+                            // Actualizează kilometrajul mașinii
+                            actualizeazaKilometrajMasina(masina.id, kilometraj);
+                            callback(null, {
+                                id: this.lastID,
+                                masina: numarInmatriculare,
+                                consum: consumMediu
+                            });
+                        }
+                    }
+                );
+            });
+        }
+    );
+}
+
 // ==================== RUTE PAGINI ====================
 
 // Pagina de login
@@ -417,10 +430,10 @@ app.get('/login', (req, res) => {
     </head>
     <body>
         <div class="login-box">
-            <h2>Login</h2>
+            <h2>Management Flota Auto Fan Courier TG-Jiu</h2>
             <div class="error" id="errorMessage"></div>
             <form id="loginForm">
-                <input type="text" id="username" placeholder="Username" value="Tzindex" required>
+                <input type="text" id="username" placeholder="Username" value="Tzrkalex" required>
                 <input type="password" id="password" placeholder="Password" value="Ro27821091" required>
                 <button type="submit">Login</button>
             </form>
@@ -448,11 +461,6 @@ app.get('/login', (req, res) => {
                     document.getElementById('errorMessage').textContent = 'Eroare de conexiune';
                 }
             });
-            
-            // Auto-login imediat
-            setTimeout(() => {
-                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
-            }, 100);
         </script>
     </body>
     </html>
@@ -465,7 +473,7 @@ app.get('/', requireAuth, (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Management Flotă Auto</title>
+        <title>Management Flota Auto Fan Courier TG-Jiu</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
@@ -502,11 +510,13 @@ app.get('/', requireAuth, (req, res) => {
             .import-success { background: #d4edda; color: #155724; }
             .import-error { background: #f8d7da; color: #721c24; }
             .kilometraj-info { background: #e7f3ff; padding: 10px; border-radius: 5px; margin: 10px 0; }
+            .csv-preview { max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 12px; }
+            .action-buttons { display: flex; gap: 5px; }
         </style>
     </head>
     <body>
         <div class="header">
-            <h1>🚗 Management Flotă Auto - APA VIE SRL</h1>
+            <h1>🚗 Management Flota Auto Fan Courier TG-Jiu</h1>
             <p>Bun venit, ${req.session.user.nume}!</p>
             <button class="btn btn-danger" onclick="logout()">🚪 Delogare</button>
         </div>
@@ -633,16 +643,24 @@ app.get('/', requireAuth, (req, res) => {
                     <h3>📤 Importă Alimentări din OSCAR</h3>
                     <p>Încarcă fișierul CSV exportat din aplicația OSCAR pentru a sincroniza alimentările și kilometrajul.</p>
                     
-                    <form id="uploadForm" enctype="multipart/form-data">
+                    <form id="uploadForm">
                         <div class="form-group">
                             <label for="csvFile">Selectează fișierul CSV:</label>
-                            <input type="file" id="csvFile" name="csvFile" accept=".csv" required>
+                            <input type="file" id="csvFile" name="csvFile" accept=".csv,.txt" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Previzualizare CSV:</label>
+                            <div id="csvPreview" class="csv-preview">
+                                Selectează un fișier pentru previzualizare...
+                            </div>
                         </div>
                         
                         <div class="form-group">
                             <label>Format așteptat în CSV:</label>
                             <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;">
-                                Număr înmatriculare, Data, Cantitate (l), Preț/l, Cost total, Kilometraj, Locatie
+                                numar_inmatriculare, data, cantitate_litri, cost_total, kilometraj, locatie<br>
+                                <em>sau alte denumiri similare de coloane</em>
                             </div>
                         </div>
                         
@@ -697,6 +715,7 @@ app.get('/', requireAuth, (req, res) => {
                 <h2>⛽ Adaugă Alimentare</h2>
                 <form id="form-alimentare">
                     <input type="hidden" id="alimentare-masina-id">
+                    <input type="hidden" id="alimentare-id">
                     <div class="form-group">
                         <label>Data și Ora</label>
                         <input type="datetime-local" id="alimentare-data" required>
@@ -768,7 +787,7 @@ app.get('/', requireAuth, (req, res) => {
             </div>
         </div>
 
-        <!-- Modal Document ÎMBUNĂTĂȚIT -->
+        <!-- Modal Document -->
         <div id="modalDocument" class="modal">
             <div class="modal-content">
                 <h2>📄 Adaugă Document</h2>
@@ -830,6 +849,7 @@ app.get('/', requireAuth, (req, res) => {
 
         <script>
             let masini = [];
+            let alimentariCurente = [];
             
             // Funcții tab
             function showTab(tabName) {
@@ -934,7 +954,7 @@ app.get('/', requireAuth, (req, res) => {
                 }
             }
             
-            // Funcții alimentări
+            // ==================== FUNCȚII ALIMENTĂRI ÎMBUNĂTĂȚITE ====================
             function loadAlimentariMasina() {
                 const masinaId = document.getElementById('select-masina-alimentare').value;
                 if (!masinaId) return;
@@ -944,16 +964,16 @@ app.get('/', requireAuth, (req, res) => {
                 fetch(\`/api/masini/\${masinaId}/alimentari\`)
                 .then(r => r.json())
                 .then(data => {
+                    alimentariCurente = data.alimentari || [];
                     const container = document.getElementById('alimentari-content');
-                    const alimentari = data.alimentari || [];
                     
-                    if (alimentari.length === 0) {
+                    if (alimentariCurente.length === 0) {
                         container.innerHTML = '<p>Nu există alimentări pentru această mașină.</p>';
                         return;
                     }
                     
-                    let html = '<table class="table"><tr><th>Data</th><th>Cantitate</th><th>Cost</th><th>KM</th><th>Consum</th><th>Locație</th></tr>';
-                    alimentari.forEach(a => {
+                    let html = '<table class="table"><tr><th>Data</th><th>Cantitate</th><th>Cost</th><th>KM</th><th>Consum</th><th>Locație</th><th>Acțiuni</th></tr>';
+                    alimentariCurente.forEach(a => {
                         html += \`<tr>
                             <td>\${new Date(a.data_alimentare).toLocaleDateString()}</td>
                             <td>\${a.cantitate_litri}L</td>
@@ -961,6 +981,10 @@ app.get('/', requireAuth, (req, res) => {
                             <td>\${a.km_curent}</td>
                             <td>\${a.consum_mediu || '-'}L/100km</td>
                             <td>\${a.locatie || '-'}</td>
+                            <td class="action-buttons">
+                                <button class="btn btn-warning" onclick="editAlimentare(\${a.id})" title="Editează">✏️</button>
+                                <button class="btn btn-danger" onclick="deleteAlimentare(\${a.id})" title="Șterge">🗑️</button>
+                            </td>
                         </tr>\`;
                     });
                     html += '</table>';
@@ -974,6 +998,11 @@ app.get('/', requireAuth, (req, res) => {
                     alert('Selectează mai întâi o mașină!');
                     return;
                 }
+                
+                // Resetează formularul pentru adăugare nouă
+                document.getElementById('form-alimentare').reset();
+                document.getElementById('alimentare-id').value = '';
+                
                 document.getElementById('modalAlimentare').style.display = 'block';
                 document.getElementById('alimentare-data').value = new Date().toISOString().slice(0, 16);
                 
@@ -982,6 +1011,49 @@ app.get('/', requireAuth, (req, res) => {
                 if (masina) {
                     document.getElementById('alimentare-km').value = masina.kilometraj_curent;
                 }
+            }
+            
+            function editAlimentare(alimentareId) {
+                const alimentare = alimentariCurente.find(a => a.id == alimentareId);
+                if (!alimentare) {
+                    alert('Alimentarea nu a fost găsită!');
+                    return;
+                }
+                
+                // Completează formularul cu datele existente
+                document.getElementById('alimentare-id').value = alimentare.id;
+                document.getElementById('alimentare-masina-id').value = document.getElementById('select-masina-alimentare').value;
+                document.getElementById('alimentare-data').value = alimentare.data_alimentare.replace(' ', 'T').substring(0, 16);
+                document.getElementById('alimentare-cantitate').value = alimentare.cantitate_litri;
+                document.getElementById('alimentare-cost').value = alimentare.cost_total;
+                document.getElementById('alimentare-km').value = alimentare.km_curent;
+                document.getElementById('alimentare-pret').value = alimentare.pret_per_litru || '';
+                document.getElementById('alimentare-locatie').value = alimentare.locatie || '';
+                document.getElementById('alimentare-factura').value = alimentare.numar_factura || '';
+                
+                document.getElementById('modalAlimentare').style.display = 'block';
+            }
+            
+            function deleteAlimentare(alimentareId) {
+                if (!confirm('Sigur vrei să ștergi această alimentare?')) {
+                    return;
+                }
+                
+                fetch(\`/api/alimentari/\${alimentareId}\`, { 
+                    method: 'DELETE' 
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        loadAlimentariMasina();
+                        alert('Alimentare ștearsă cu succes!');
+                    } else {
+                        alert('Eroare la ștergere: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('Eroare la ștergere: ' + error.message);
+                });
             }
             
             // Funcții revizii
@@ -1157,6 +1229,20 @@ app.get('/', requireAuth, (req, res) => {
             }
             
             // ==================== FUNCȚII SINCRONIZARE OSCAR ====================
+            // Previzualizare CSV
+            document.getElementById('csvFile').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const csvText = e.target.result;
+                    document.getElementById('csvPreview').textContent = csvText.substring(0, 1000) + (csvText.length > 1000 ? '...' : '');
+                };
+                reader.readAsText(file);
+            });
+            
+            // Import CSV
             document.getElementById('uploadForm').addEventListener('submit', function(e) {
                 e.preventDefault();
                 
@@ -1166,8 +1252,8 @@ app.get('/', requireAuth, (req, res) => {
                     return;
                 }
                 
-                const formData = new FormData();
-                formData.append('csvFile', fileInput.files[0]);
+                const file = fileInput.files[0];
+                const reader = new FileReader();
                 
                 const progressBar = document.getElementById('uploadProgress');
                 const resultDiv = document.getElementById('importResult');
@@ -1176,29 +1262,36 @@ app.get('/', requireAuth, (req, res) => {
                 resultDiv.innerHTML = '⏳ Se procesează fișierul...';
                 resultDiv.className = 'import-result';
                 
-                fetch('/api/import-oscar', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        progressBar.style.width = '100%';
-                        resultDiv.innerHTML = \`✅ \${data.message}\`;
-                        resultDiv.className = 'import-result import-success';
-                        
-                        // Reîncarcă datele
-                        loadMasini();
-                        loadKilometrajMasini();
-                    } else {
-                        resultDiv.innerHTML = \`❌ Eroare: \${data.error}\`;
+                reader.onload = function(e) {
+                    const csvText = e.target.result;
+                    
+                    fetch('/api/import-oscar', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ csvData: csvText })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            progressBar.style.width = '100%';
+                            resultDiv.innerHTML = \`✅ \${data.message}\`;
+                            resultDiv.className = 'import-result import-success';
+                            
+                            // Reîncarcă datele
+                            loadMasini();
+                            loadKilometrajMasini();
+                        } else {
+                            resultDiv.innerHTML = \`❌ Eroare: \${data.error}\`;
+                            resultDiv.className = 'import-result import-error';
+                        }
+                    })
+                    .catch(error => {
+                        resultDiv.innerHTML = \`❌ Eroare de rețea: \${error.message}\`;
                         resultDiv.className = 'import-result import-error';
-                    }
-                })
-                .catch(error => {
-                    resultDiv.innerHTML = \`❌ Eroare de rețea: \${error.message}\`;
-                    resultDiv.className = 'import-result import-error';
-                });
+                    });
+                };
+                
+                reader.readAsText(file);
             });
             
             // Sincronizare rapidă
@@ -1361,6 +1454,9 @@ app.get('/', requireAuth, (req, res) => {
                 // Form alimentare
                 document.getElementById('form-alimentare').addEventListener('submit', function(e) {
                     e.preventDefault();
+                    const alimentareId = document.getElementById('alimentare-id').value;
+                    const masinaId = document.getElementById('alimentare-masina-id').value;
+                    
                     const alimentare = {
                         data_alimentare: document.getElementById('alimentare-data').value,
                         cantitate_litri: parseFloat(document.getElementById('alimentare-cantitate').value),
@@ -1371,10 +1467,17 @@ app.get('/', requireAuth, (req, res) => {
                         numar_factura: document.getElementById('alimentare-factura').value
                     };
                     
-                    const masinaId = document.getElementById('alimentare-masina-id').value;
+                    let url = \`/api/masini/\${masinaId}/alimentari\`;
+                    let method = 'POST';
                     
-                    fetch(\`/api/masini/\${masinaId}/alimentari\`, {
-                        method: 'POST',
+                    // Dacă există ID, înseamnă că edităm o alimentare existentă
+                    if (alimentareId) {
+                        url = \`/api/alimentari/\${alimentareId}\`;
+                        method = 'PUT';
+                    }
+                    
+                    fetch(url, {
+                        method: method,
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify(alimentare)
                     })
@@ -1384,7 +1487,7 @@ app.get('/', requireAuth, (req, res) => {
                             closeModal('modalAlimentare');
                             loadAlimentariMasina();
                             loadMasini(); // Reîncarcă pentru actualizare kilometraj
-                            alert('Alimentare adăugată! Consum: ' + data.consum_mediu + 'L/100km');
+                            alert(alimentareId ? 'Alimentare actualizată cu succes!' : 'Alimentare adăugată! Consum: ' + data.consum_mediu + 'L/100km');
                         } else {
                             alert('Eroare: ' + data.error);
                         }
@@ -1509,10 +1612,10 @@ app.post('/api/login', (req, res) => {
     }
     
     // Verificare simplificată pentru online
-    if (username === 'Tzindex' && password === 'Ro27821091') {
+    if (username === 'Tzrkalex' && password === 'Ro27821091') {
         req.session.user = {
             id: 1,
-            username: 'Tzindex',
+            username: 'Tzrkalex',
             nume: 'Alexandru Tirca',
             is_admin: 1
         };
@@ -1671,6 +1774,76 @@ app.post('/api/masini/:id/alimentari', requireAuth, (req, res) => {
     });
 });
 
+// ==================== RUTE NOI PENTRU EDITARE/ȘTERGERE ALIMENTĂRI ====================
+app.put('/api/alimentari/:id', requireAuth, (req, res) => {
+    const alimentareId = req.params.id;
+    const { data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, locatie, numar_factura } = req.body;
+    
+    if (!cantitate_litri || !cost_total || !km_curent) {
+        return res.status(400).json({ error: 'Cantitate, cost și kilometraj sunt obligatorii' });
+    }
+    
+    // Obține mașina asociată alimentării pentru a calcula consumul
+    db.get(
+        'SELECT masina_id FROM alimentari WHERE id = ?',
+        [alimentareId],
+        (err, row) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            
+            if (!row) {
+                return res.status(404).json({ error: 'Alimentarea nu a fost găsită' });
+            }
+            
+            const masinaId = row.masina_id;
+            
+            calculeazaConsumSiKm(masinaId, km_curent, cantitate_litri, (kmParcursi, consumMediu) => {
+                
+                db.run(
+                    `UPDATE alimentari SET 
+                     data_alimentare = ?, cantitate_litri = ?, cost_total = ?, pret_per_litru = ?, 
+                     km_curent = ?, km_parcursi = ?, consum_mediu = ?, locatie = ?, numar_factura = ?
+                     WHERE id = ?`,
+                    [data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, kmParcursi, consumMediu, locatie, numar_factura, alimentareId],
+                    function(err) {
+                        if (err) {
+                            res.status(500).json({ error: err.message });
+                            return;
+                        }
+                        
+                        // Actualizează kilometrajul mașinii dacă este mai mare
+                        actualizeazaKilometrajMasina(masinaId, km_curent);
+                        
+                        res.json({ 
+                            success: true,
+                            message: 'Alimentare actualizată cu succes!',
+                            consum_mediu: consumMediu,
+                            km_parcursi: kmParcursi
+                        });
+                    }
+                );
+            });
+        }
+    );
+});
+
+app.delete('/api/alimentari/:id', requireAuth, (req, res) => {
+    const alimentareId = req.params.id;
+    
+    db.run('DELETE FROM alimentari WHERE id = ?', [alimentareId], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json({ 
+            success: true,
+            message: 'Alimentare ștearsă cu succes!'
+        });
+    });
+});
+
 // Rute revizii
 app.get('/api/masini/:id/revizii', requireAuth, (req, res) => {
     const masinaId = req.params.id;
@@ -1803,98 +1976,56 @@ app.delete('/api/documente/:id', requireAuth, (req, res) => {
 });
 
 // ==================== RUTE SINCRONIZARE OSCAR ====================
-app.post('/api/import-oscar', requireAuth, upload.single('csvFile'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'Niciun fișier încărcat' });
+app.post('/api/import-oscar', requireAuth, (req, res) => {
+    const { csvData } = req.body;
+    
+    if (!csvData) {
+        return res.status(400).json({ error: 'Nu s-au primit date CSV' });
     }
-
-    const results = [];
-    let importCount = 0;
-    let errorCount = 0;
-
-    fs.createReadStream(req.file.path)
-        .pipe(csv())
-        .on('data', (data) => {
-            results.push(data);
-        })
-        .on('end', () => {
-            // Șterge fișierul după procesare
-            fs.unlinkSync(req.file.path);
-
-            if (results.length === 0) {
-                return res.status(400).json({ error: 'Fișierul CSV este gol' });
-            }
-
-            // Procesează fiecare rând
-            results.forEach((row, index) => {
-                const numarInmatriculare = row['Numar_inmatriculare'] || row['numar_inmatriculare'] || row['Numar'] || row['Inmatriculare'];
-                const dataAlimentare = row['Data'] || row['data'] || row['Data_alimentare'] || new Date().toISOString().split('T')[0];
-                const cantitate = parseFloat(row['Cantitate_litri'] || row['Cantitate'] || row['Litri'] || row['cantitate']);
-                const pretPerLitru = parseFloat(row['Pret_litru'] || row['Pret'] || row['Pret_per_litru'] || row['pret']);
-                const costTotal = parseFloat(row['Cost_total'] || row['Cost'] || row['Total'] || row['cost']);
-                const kilometraj = parseInt(row['Kilometraj'] || row['km'] || row['Kilometri'] || row['kilometraj']);
-                const locatie = row['Locatie'] || row['Locatia'] || row['Statie'] || row['locatie'];
-
-                if (!numarInmatriculare || isNaN(cantitate) || isNaN(costTotal) || isNaN(kilometraj)) {
-                    console.error(`Rând ${index + 1} invalid:`, row);
+    
+    try {
+        const results = parseCSV(csvData);
+        
+        if (results.length === 0) {
+            return res.json({ success: true, message: 'Fișierul CSV este gol' });
+        }
+        
+        let importCount = 0;
+        let errorCount = 0;
+        const errors = [];
+        
+        // Procesează fiecare rând
+        results.forEach((row, index) => {
+            proceseazaRandCSV(row, index, (error, result) => {
+                if (error) {
                     errorCount++;
-                    return;
+                    errors.push(error);
+                } else {
+                    importCount++;
                 }
-
-                // Găsește mașina după număr de înmatriculare
-                db.get(
-                    'SELECT id FROM masini WHERE numar_inmatriculare = ?',
-                    [numarInmatriculare],
-                    (err, masina) => {
-                        if (err) {
-                            console.error('Eroare la căutarea mașinii:', err);
-                            errorCount++;
-                            return;
-                        }
-
-                        if (!masina) {
-                            console.error(`Mașina cu numărul ${numarInmatriculare} nu a fost găsită`);
-                            errorCount++;
-                            return;
-                        }
-
-                        // Calculează consumul
-                        calculeazaConsumSiKm(masina.id, kilometraj, cantitate, (kmParcursi, consumMediu) => {
-                            
-                            // Inserează alimentarea
-                            db.run(
-                                `INSERT INTO alimentari (masina_id, data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, km_parcursi, consum_mediu, locatie, sincronizat_cu_oscar) 
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                                [masina.id, dataAlimentare, cantitate, costTotal, pretPerLitru, kilometraj, kmParcursi, consumMediu, locatie, 1],
-                                function(err) {
-                                    if (err) {
-                                        console.error('Eroare la inserarea alimentării:', err);
-                                        errorCount++;
-                                    } else {
-                                        importCount++;
-                                        
-                                        // Actualizează kilometrajul mașinii
-                                        actualizeazaKilometrajMasina(masina.id, kilometraj);
-                                    }
-
-                                    // Verifică dacă am procesat toate rândurile
-                                    if (importCount + errorCount === results.length) {
-                                        res.json({
-                                            success: true,
-                                            message: `Import complet: ${importCount} alimentări importate, ${errorCount} erori.`
-                                        });
-                                    }
-                                }
-                            );
+                
+                // Când am procesat toate rândurile
+                if (importCount + errorCount === results.length) {
+                    if (errors.length > 0) {
+                        res.json({
+                            success: true,
+                            message: `Import complet: ${importCount} alimentări importate, ${errorCount} erori.`,
+                            errors: errors.slice(0, 10) // Primele 10 erori
+                        });
+                    } else {
+                        res.json({
+                            success: true,
+                            message: `Import complet: ${importCount} alimentări importate cu succes!`
                         });
                     }
-                );
+                }
             });
-        })
-        .on('error', (error) => {
-            console.error('Eroare la procesarea CSV:', error);
-            res.status(500).json({ error: 'Eroare la procesarea fișierului CSV' });
         });
+        
+    } catch (error) {
+        console.error('Eroare la procesarea CSV:', error);
+        res.status(500).json({ error: 'Eroare la procesarea fișierului CSV: ' + error.message });
+    }
 });
 
 // Rute rapoarte
@@ -1982,5 +2113,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('🔑 Parola: Ro27821091');
     console.log('💾 Baza de date: :memory: (online)');
     console.log('🔄 Sincronizare OSCAR: ACTIVATĂ');
+    console.log('✏️ Editare/Ștergere Alimentări: ACTIVATĂ');
     console.log('🚀 ========================================');
 });
