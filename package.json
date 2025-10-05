@@ -1,18 +1,31 @@
 {
-  "success": true,
-  "data": [
-    {
-      "id": 1,
-      "name": "System Disk",
-      "size": 500,
-      "type": "SSD"
-    },
-    {
-      "id": 2, 
-      "name": "Data Storage",
-      "size": 1000,
-      "type": "HDD"
-    }
+  "name": "management-flota-auto",
+  "version": "1.0.0",
+  "description": "Sistem de management pentru flota auto",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.21.2",
+    "express-session": "^1.18.2",
+    "sqlite3": "^5.1.7"
+  },
+  "keywords": [
+    "flota",
+    "auto",
+    "management"
   ],
-  "count": 2
+  "author": "Tzrkalex",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TZRKALEX/management-flota-auto.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TZRKALEX/management-flota-auto/issues"
+  },
+  "homepage": "https://github.com/TZRKALEX/management-flota-auto#readme"
 }

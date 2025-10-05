@@ -21,7 +21,7 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        secure: isProduction,
+        secure: isProduction, // În producție trebuie să fie true, dar în development false
         maxAge: 24 * 60 * 60 * 1000 
     }
 }));
