@@ -2,9 +2,15 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
+const multer = require('multer');
+const csv = require('csv-parser');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Configurare upload fișiere
+const upload = multer({ dest: 'uploads/' });
 
 // Middleware de bază
 app.use(express.json());
@@ -66,6 +72,7 @@ function initDatabase() {
             tip_combustibil TEXT,
             culoare TEXT,
             serie_sasiu TEXT,
+            kilometraj_curent INTEGER DEFAULT 0,
             status TEXT DEFAULT 'activ',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -130,8 +137,8 @@ function initDatabase() {
             consum_mediu REAL,
             locatie TEXT,
             tip_combustibil TEXT,
-            numar_inmatriculare_pompa TEXT,
-            sincronizat_cu_pompa INTEGER DEFAULT 0,
+            numar_factura TEXT,
+            sincronizat_cu_oscar INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (masina_id) REFERENCES masini (id)
         )
@@ -190,7 +197,8 @@ function addSampleData() {
             tip_combustibil: "diesel", 
             an_fabricatie: 2018,
             culoare: "Negru",
-            serie_sasiu: "WBA7E4100JGV38613"
+            serie_sasiu: "WBA7E4100JGV38613",
+            kilometraj_curent: 152000
         },
         { 
             numar_inmatriculare: "B123ABC", 
@@ -198,14 +206,15 @@ function addSampleData() {
             model: "Transporter", 
             tip_combustibil: "diesel", 
             an_fabricatie: 2022,
-            culoare: "Alb"
+            culoare: "Alb",
+            kilometraj_curent: 45000
         }
     ];
 
     sampleCars.forEach(car => {
         db.run(
-            'INSERT OR IGNORE INTO masini (numar_inmatriculare, marca, model, an_fabricatie, tip_combustibil, culoare, serie_sasiu) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [car.numar_inmatriculare, car.marca, car.model, car.an_fabricatie, car.tip_combustibil, car.culoare, car.serie_sasiu],
+            'INSERT OR IGNORE INTO masini (numar_inmatriculare, marca, model, an_fabricatie, tip_combustibil, culoare, serie_sasiu, kilometraj_curent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [car.numar_inmatriculare, car.marca, car.model, car.an_fabricatie, car.tip_combustibil, car.culoare, car.serie_sasiu, car.kilometraj_curent],
             function(err) {
                 if (err) {
                     console.error('Eroare adăugare mașină exemplu:', err);
@@ -296,6 +305,33 @@ function calculeazaConsumSiKm(masinaId, kmCurent, cantitateLitri, callback) {
     );
 }
 
+function actualizeazaKilometrajMasina(masinaId, kmNou) {
+    db.get(
+        'SELECT kilometraj_curent FROM masini WHERE id = ?',
+        [masinaId],
+        (err, row) => {
+            if (err) {
+                console.error('Eroare la verificare kilometraj:', err);
+                return;
+            }
+            
+            if (row && kmNou > row.kilometraj_curent) {
+                db.run(
+                    'UPDATE masini SET kilometraj_curent = ? WHERE id = ?',
+                    [kmNou, masinaId],
+                    (err) => {
+                        if (err) {
+                            console.error('Eroare la actualizare kilometraj:', err);
+                        } else {
+                            console.log(`✅ Kilometraj actualizat pentru mașina ${masinaId}: ${row.kilometraj_curent} -> ${kmNou}`);
+                        }
+                    }
+                );
+            }
+        }
+    );
+}
+
 // ==================== RUTE PAGINI ====================
 
 // Pagina de login
@@ -359,7 +395,7 @@ app.get('/login', (req, res) => {
     `);
 });
 
-// Pagina principală - INTERFAȚĂ COMPLETĂ
+// Pagina principală - INTERFAȚĂ COMPLETĂ CU SINCRONIZARE OSCAR
 app.get('/', requireAuth, (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -378,12 +414,13 @@ app.get('/', requireAuth, (req, res) => {
             .btn-success { background: #28a745; }
             .btn-danger { background: #dc3545; }
             .btn-warning { background: #ffc107; color: black; }
+            .btn-info { background: #17a2b8; }
             .masina-item { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #007bff; }
             .form-group { margin-bottom: 15px; }
             .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
             .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-            .tabs { display: flex; margin-bottom: 20px; }
-            .tab { padding: 10px 20px; cursor: pointer; border: 1px solid #ddd; background: #f8f9fa; }
+            .tabs { display: flex; margin-bottom: 20px; flex-wrap: wrap; }
+            .tab { padding: 10px 20px; cursor: pointer; border: 1px solid #ddd; background: #f8f9fa; margin: 2px; }
             .tab.active { background: #007bff; color: white; }
             .tab-content { display: none; }
             .tab-content.active { display: block; }
@@ -391,10 +428,16 @@ app.get('/', requireAuth, (req, res) => {
             .table th, .table td { padding: 10px; border: 1px solid #ddd; text-align: left; }
             .table th { background: #f8f9fa; }
             .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
-            .modal-content { background: white; margin: 5% auto; padding: 20px; border-radius: 10px; width: 90%; max-width: 600px; }
+            .modal-content { background: white; margin: 5% auto; padding: 20px; border-radius: 10px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
             .document-expirat { background: #ffcccc !important; }
             .document-expira-curand { background: #fff3cd !important; }
             .document-ok { background: #d4edda !important; }
+            .progress-bar { width: 100%; background: #f0f0f0; border-radius: 5px; margin: 10px 0; }
+            .progress { height: 20px; background: #007bff; border-radius: 5px; width: 0%; transition: width 0.3s; }
+            .import-result { margin-top: 15px; padding: 10px; border-radius: 5px; }
+            .import-success { background: #d4edda; color: #155724; }
+            .import-error { background: #f8d7da; color: #721c24; }
+            .kilometraj-info { background: #e7f3ff; padding: 10px; border-radius: 5px; margin: 10px 0; }
         </style>
     </head>
     <body>
@@ -409,6 +452,7 @@ app.get('/', requireAuth, (req, res) => {
             <div class="tab" onclick="showTab('alimentari')">⛽ Alimentări</div>
             <div class="tab" onclick="showTab('revizii')">🔧 Revizii</div>
             <div class="tab" onclick="showTab('documente')">📄 Documente</div>
+            <div class="tab" onclick="showTab('sincronizare')">🔄 Sincronizare OSCAR</div>
             <div class="tab" onclick="showTab('rapoarte')">📊 Rapoarte</div>
         </div>
 
@@ -457,6 +501,10 @@ app.get('/', requireAuth, (req, res) => {
                     <div class="form-group">
                         <label>Serie Șasiu</label>
                         <input type="text" id="serie_sasiu">
+                    </div>
+                    <div class="form-group">
+                        <label>Kilometraj Curent</label>
+                        <input type="number" id="kilometraj_curent" placeholder="Introdu kilometrajul actual">
                     </div>
                     <button type="submit" class="btn btn-success">✅ Adaugă Mașina</button>
                 </form>
@@ -508,12 +556,73 @@ app.get('/', requireAuth, (req, res) => {
             </div>
         </div>
 
+        <!-- Tab Sincronizare OSCAR -->
+        <div id="sincronizare" class="tab-content">
+            <div class="card">
+                <h2>🔄 Sincronizare cu Aplicația OSCAR</h2>
+                <div class="kilometraj-info">
+                    <h3>📊 Kilometraj Curent Mașini</h3>
+                    <div id="kilometraj-masini"></div>
+                </div>
+                
+                <div class="form-group">
+                    <h3>📤 Importă Alimentări din OSCAR</h3>
+                    <p>Încarcă fișierul CSV exportat din aplicația OSCAR pentru a sincroniza alimentările și kilometrajul.</p>
+                    
+                    <form id="uploadForm" enctype="multipart/form-data">
+                        <div class="form-group">
+                            <label for="csvFile">Selectează fișierul CSV:</label>
+                            <input type="file" id="csvFile" name="csvFile" accept=".csv" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Format așteptat în CSV:</label>
+                            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;">
+                                Număr înmatriculare, Data, Cantitate (l), Preț/l, Cost total, Kilometraj, Locatie
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-info">🔄 Importă din OSCAR</button>
+                    </form>
+                    
+                    <div class="progress-bar">
+                        <div class="progress" id="uploadProgress"></div>
+                    </div>
+                    
+                    <div id="importResult" class="import-result"></div>
+                </div>
+
+                <div class="form-group">
+                    <h3>⚡ Sincronizare Rapidă</h3>
+                    <p>Completează manual datele pentru sincronizare rapidă:</p>
+                    <form id="form-sincronizare-rapida">
+                        <div class="form-group">
+                            <label>Selectează Mașina</label>
+                            <select id="select-masina-sincronizare" required>
+                                <option value="">-- Alege mașina --</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Kilometraj Actual</label>
+                            <input type="number" id="km-actual" required placeholder="Introdu kilometrajul curent">
+                        </div>
+                        <div class="form-group">
+                            <label>Data ultimei alimentări</label>
+                            <input type="date" id="data-alimentare">
+                        </div>
+                        <button type="submit" class="btn btn-success">✅ Actualizează Kilometraj</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <!-- Tab Rapoarte -->
         <div id="rapoarte" class="tab-content">
             <div class="card">
                 <h2>Rapoarte și Statistici</h2>
                 <button class="btn" onclick="loadRaportConsum()">📈 Raport Consum</button>
                 <button class="btn" onclick="loadAlerte()">⚠️ Alertă Expirări</button>
+                <button class="btn" onclick="loadRaportRevizii()">🔧 Raport Revizii</button>
                 <div id="rapoarte-content" style="margin-top: 15px;"></div>
             </div>
         </div>
@@ -548,6 +657,10 @@ app.get('/', requireAuth, (req, res) => {
                         <label>Locație</label>
                         <input type="text" id="alimentare-locatie">
                     </div>
+                    <div class="form-group">
+                        <label>Număr Factură</label>
+                        <input type="text" id="alimentare-factura">
+                    </div>
                     <button type="submit" class="btn btn-success">✅ Salvează</button>
                     <button type="button" class="btn btn-danger" onclick="closeModal('modalAlimentare')">❌ Anulează</button>
                 </form>
@@ -562,7 +675,7 @@ app.get('/', requireAuth, (req, res) => {
                     <input type="hidden" id="revizie-masina-id">
                     <div class="form-group">
                         <label>Tip Revizie *</label>
-                        <input type="text" id="revizie-tip" required>
+                        <input type="text" id="revizie-tip" required placeholder="Ex: Revizie generală, Schimb ulei, etc.">
                     </div>
                     <div class="form-group">
                         <label>Data Revizie *</label>
@@ -571,6 +684,7 @@ app.get('/', requireAuth, (req, res) => {
                     <div class="form-group">
                         <label>Kilometraj Curent *</label>
                         <input type="number" id="revizie-km" required>
+                        <small>Kilometraj curent: <span id="kilometraj-curent-masina">0</span> km</small>
                     </div>
                     <div class="form-group">
                         <label>Cost (RON)</label>
@@ -660,8 +774,12 @@ app.get('/', requireAuth, (req, res) => {
                 document.getElementById(tabName).classList.add('active');
                 event.target.classList.add('active');
                 
-                if (tabName === 'alimentari' || tabName === 'revizii' || tabName === 'documente') {
+                if (tabName === 'alimentari' || tabName === 'revizii' || tabName === 'documente' || tabName === 'sincronizare') {
                     loadMasiniForSelect();
+                }
+                
+                if (tabName === 'sincronizare') {
+                    loadKilometrajMasini();
                 }
             }
             
@@ -682,6 +800,7 @@ app.get('/', requireAuth, (req, res) => {
                         <div class="masina-item">
                             <strong>\${masina.numar_inmatriculare}</strong> - \${masina.marca} \${masina.model}
                             <br><small>\${masina.tip_combustibil} • \${masina.an_fabricatie || 'N/A'} • \${masina.culoare || 'N/A'}</small>
+                            <br><strong>Kilometraj: \${masina.kilometraj_curent} km</strong>
                             <button class="btn btn-danger" onclick="deleteMasina(\${masina.id})" style="float: right;">🗑️ Șterge</button>
                         </div>
                     \`).join('');
@@ -689,18 +808,39 @@ app.get('/', requireAuth, (req, res) => {
             }
             
             function loadMasiniForSelect() {
-                const selects = ['select-masina-alimentare', 'select-masina-revizii', 'select-masina-documente'];
+                const selects = [
+                    'select-masina-alimentare', 
+                    'select-masina-revizii', 
+                    'select-masina-documente',
+                    'select-masina-sincronizare'
+                ];
                 selects.forEach(selectId => {
                     const select = document.getElementById(selectId);
                     select.innerHTML = '<option value="">-- Alege mașina --</option>' +
-                        masini.map(m => \`<option value="\${m.id}">\${m.numar_inmatriculare} - \${m.marca} \${m.model}</option>\`).join('');
+                        masini.map(m => \`<option value="\${m.id}">\${m.numar_inmatriculare} - \${m.marca} \${m.model} (\${m.kilometraj_curent} km)</option>\`).join('');
                 });
+            }
+            
+            function loadKilometrajMasini() {
+                const container = document.getElementById('kilometraj-masini');
+                if (masini.length === 0) {
+                    container.innerHTML = '<p>Nu există mașini în baza de date.</p>';
+                    return;
+                }
+                
+                container.innerHTML = masini.map(masina => \`
+                    <div class="masina-item">
+                        <strong>\${masina.numar_inmatriculare}</strong> - \${masina.marca} \${masina.model}
+                        <br><strong>Kilometraj curent: \${masina.kilometraj_curent} km</strong>
+                        <br><small>Ultima actualizare: \${new Date().toLocaleDateString()}</small>
+                    </div>
+                \`).join('');
             }
             
             function addSampleCars() {
                 const sampleCars = [
-                    { numar_inmatriculare: "GJ07ZR", marca: "BMW", model: "740XD", tip_combustibil: "diesel", an_fabricatie: 2018, culoare: "Negru", serie_sasiu: "WBA7E4100JGV38613" },
-                    { numar_inmatriculare: "B123ABC", marca: "Volkswagen", model: "Transporter", tip_combustibil: "diesel", an_fabricatie: 2022, culoare: "Alb" }
+                    { numar_inmatriculare: "GJ07ZR", marca: "BMW", model: "740XD", tip_combustibil: "diesel", an_fabricatie: 2018, culoare: "Negru", serie_sasiu: "WBA7E4100JGV38613", kilometraj_curent: 152000 },
+                    { numar_inmatriculare: "B123ABC", marca: "Volkswagen", model: "Transporter", tip_combustibil: "diesel", an_fabricatie: 2022, culoare: "Alb", kilometraj_curent: 45000 }
                 ];
                 
                 sampleCars.forEach(car => {
@@ -748,7 +888,7 @@ app.get('/', requireAuth, (req, res) => {
                         return;
                     }
                     
-                    let html = '<table class="table"><tr><th>Data</th><th>Cantitate</th><th>Cost</th><th>KM</th><th>Consum</th></tr>';
+                    let html = '<table class="table"><tr><th>Data</th><th>Cantitate</th><th>Cost</th><th>KM</th><th>Consum</th><th>Locație</th></tr>';
                     alimentari.forEach(a => {
                         html += \`<tr>
                             <td>\${new Date(a.data_alimentare).toLocaleDateString()}</td>
@@ -756,6 +896,7 @@ app.get('/', requireAuth, (req, res) => {
                             <td>\${a.cost_total}RON</td>
                             <td>\${a.km_curent}</td>
                             <td>\${a.consum_mediu || '-'}L/100km</td>
+                            <td>\${a.locatie || '-'}</td>
                         </tr>\`;
                     });
                     html += '</table>';
@@ -771,6 +912,12 @@ app.get('/', requireAuth, (req, res) => {
                 }
                 document.getElementById('modalAlimentare').style.display = 'block';
                 document.getElementById('alimentare-data').value = new Date().toISOString().slice(0, 16);
+                
+                // Preumple cu kilometrajul curent
+                const masina = masini.find(m => m.id == masinaId);
+                if (masina) {
+                    document.getElementById('alimentare-km').value = masina.kilometraj_curent;
+                }
             }
             
             // Funcții revizii
@@ -791,7 +938,7 @@ app.get('/', requireAuth, (req, res) => {
                         return;
                     }
                     
-                    let html = '<table class="table"><tr><th>Tip</th><th>Data</th><th>KM</th><th>Cost</th><th>Service</th></tr>';
+                    let html = '<table class="table"><tr><th>Tip</th><th>Data</th><th>KM</th><th>Cost</th><th>Service</th><th>Observații</th></tr>';
                     revizii.forEach(r => {
                         html += \`<tr>
                             <td>\${r.tip_revizie}</td>
@@ -799,6 +946,7 @@ app.get('/', requireAuth, (req, res) => {
                             <td>\${r.km_curent}</td>
                             <td>\${r.cost || '-'}RON</td>
                             <td>\${r.service || '-'}</td>
+                            <td>\${r.observatii || '-'}</td>
                         </tr>\`;
                     });
                     html += '</table>';
@@ -814,9 +962,16 @@ app.get('/', requireAuth, (req, res) => {
                 }
                 document.getElementById('modalRevizie').style.display = 'block';
                 document.getElementById('revizie-data').valueAsDate = new Date();
+                
+                // Preumple cu kilometrajul curent
+                const masina = masini.find(m => m.id == masinaId);
+                if (masina) {
+                    document.getElementById('revizie-km').value = masina.kilometraj_curent;
+                    document.getElementById('kilometraj-curent-masina').textContent = masina.kilometraj_curent;
+                }
             }
             
-            // ==================== FUNCȚII DOCUMENTE - VERZIUNE ÎMBUNĂTĂȚITĂ ====================
+            // ==================== FUNCȚII DOCUMENTE ====================
             function loadDocumenteMasina() {
                 const masinaId = document.getElementById('select-masina-documente').value;
                 if (!masinaId) return;
@@ -937,6 +1092,81 @@ app.get('/', requireAuth, (req, res) => {
                 });
             }
             
+            // ==================== FUNCȚII SINCRONIZARE OSCAR ====================
+            document.getElementById('uploadForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const fileInput = document.getElementById('csvFile');
+                if (!fileInput.files[0]) {
+                    alert('Selectează un fișier CSV!');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('csvFile', fileInput.files[0]);
+                
+                const progressBar = document.getElementById('uploadProgress');
+                const resultDiv = document.getElementById('importResult');
+                
+                progressBar.style.width = '0%';
+                resultDiv.innerHTML = '⏳ Se procesează fișierul...';
+                resultDiv.className = 'import-result';
+                
+                fetch('/api/import-oscar', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        progressBar.style.width = '100%';
+                        resultDiv.innerHTML = \`✅ \${data.message}\`;
+                        resultDiv.className = 'import-result import-success';
+                        
+                        // Reîncarcă datele
+                        loadMasini();
+                        loadKilometrajMasini();
+                    } else {
+                        resultDiv.innerHTML = \`❌ Eroare: \${data.error}\`;
+                        resultDiv.className = 'import-result import-error';
+                    }
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = \`❌ Eroare de rețea: \${error.message}\`;
+                    resultDiv.className = 'import-result import-error';
+                });
+            });
+            
+            // Sincronizare rapidă
+            document.getElementById('form-sincronizare-rapida').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const masinaId = document.getElementById('select-masina-sincronizare').value;
+                const kmActual = document.getElementById('km-actual').value;
+                
+                if (!masinaId || !kmActual) {
+                    alert('Completează toate câmpurile!');
+                    return;
+                }
+                
+                fetch(\`/api/masini/\${masinaId}/kilometraj\`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ kilometraj_curent: parseInt(kmActual) })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Kilometraj actualizat cu succes!');
+                        loadMasini();
+                        loadKilometrajMasini();
+                        document.getElementById('form-sincronizare-rapida').reset();
+                    } else {
+                        alert('❌ Eroare: ' + data.error);
+                    }
+                });
+            });
+            
             // Funcții rapoarte
             function loadRaportConsum() {
                 fetch('/api/rapoarte/consum')
@@ -950,13 +1180,44 @@ app.get('/', requireAuth, (req, res) => {
                         return;
                     }
                     
-                    let html = '<table class="table"><tr><th>Mașină</th><th>Consum Mediu</th><th>Total Litri</th><th>Cost Total</th></tr>';
+                    let html = '<table class="table"><tr><th>Mașină</th><th>Consum Mediu</th><th>Total Litri</th><th>Cost Total</th><th>Număr Alimentări</th></tr>';
                     raport.forEach(r => {
                         html += \`<tr>
                             <td>\${r.numar_inmatriculare}</td>
                             <td>\${r.consum_mediu ? r.consum_mediu.toFixed(2) + 'L/100km' : 'N/A'}</td>
                             <td>\${r.total_litri ? r.total_litri.toFixed(2) + 'L' : '0L'}</td>
                             <td>\${r.cost_total ? r.cost_total.toFixed(2) + 'RON' : '0RON'}</td>
+                            <td>\${r.numar_alimentari || 0}</td>
+                        </tr>\`;
+                    });
+                    html += '</table>';
+                    container.innerHTML = html;
+                });
+            }
+            
+            function loadRaportRevizii() {
+                fetch('/api/rapoarte/revizii')
+                .then(r => r.json())
+                .then(data => {
+                    const container = document.getElementById('rapoarte-content');
+                    const raport = data.raport || [];
+                    
+                    if (raport.length === 0) {
+                        container.innerHTML = '<p>Nu există revizii pentru raport.</p>';
+                        return;
+                    }
+                    
+                    let html = '<table class="table"><tr><th>Mașină</th><th>Ultima Revizie</th><th>KM la Revizie</th><th>Următoarea Revizie KM</th><th>KM Rămași</th></tr>';
+                    raport.forEach(r => {
+                        const kmRamasi = r.urmatoarea_revizie_km - r.kilometraj_curent;
+                        const style = kmRamasi < 1000 ? 'color: red; font-weight: bold;' : (kmRamasi < 5000 ? 'color: orange;' : 'color: green;');
+                        
+                        html += \`<tr>
+                            <td>\${r.numar_inmatriculare}</td>
+                            <td>\${r.ultima_revizie_data ? new Date(r.ultima_revizie_data).toLocaleDateString() : 'N/A'}</td>
+                            <td>\${r.ultima_revizie_km || 'N/A'}</td>
+                            <td>\${r.urmatoarea_revizie_km || 'N/A'}</td>
+                            <td style="\${style}">\${r.urmatoarea_revizie_km ? kmRamasi + ' km' : 'N/A'}</td>
                         </tr>\`;
                     });
                     html += '</table>';
@@ -1012,7 +1273,8 @@ app.get('/', requireAuth, (req, res) => {
                         an_fabricatie: document.getElementById('an_fabricatie').value,
                         tip_combustibil: document.getElementById('tip_combustibil').value,
                         culoare: document.getElementById('culoare').value,
-                        serie_sasiu: document.getElementById('serie_sasiu').value
+                        serie_sasiu: document.getElementById('serie_sasiu').value,
+                        kilometraj_curent: document.getElementById('kilometraj_curent').value || 0
                     };
                     
                     fetch('/api/masini', {
@@ -1041,7 +1303,8 @@ app.get('/', requireAuth, (req, res) => {
                         cost_total: parseFloat(document.getElementById('alimentare-cost').value),
                         km_curent: parseInt(document.getElementById('alimentare-km').value),
                         pret_per_litru: document.getElementById('alimentare-pret').value ? parseFloat(document.getElementById('alimentare-pret').value) : null,
-                        locatie: document.getElementById('alimentare-locatie').value
+                        locatie: document.getElementById('alimentare-locatie').value,
+                        numar_factura: document.getElementById('alimentare-factura').value
                     };
                     
                     const masinaId = document.getElementById('alimentare-masina-id').value;
@@ -1056,6 +1319,7 @@ app.get('/', requireAuth, (req, res) => {
                         if (data.success) {
                             closeModal('modalAlimentare');
                             loadAlimentariMasina();
+                            loadMasini(); // Reîncarcă pentru actualizare kilometraj
                             alert('Alimentare adăugată! Consum: ' + data.consum_mediu + 'L/100km');
                         } else {
                             alert('Eroare: ' + data.error);
@@ -1087,6 +1351,7 @@ app.get('/', requireAuth, (req, res) => {
                         if (data.success) {
                             closeModal('modalRevizie');
                             loadReviziiMasina();
+                            loadMasini(); // Reîncarcă pentru actualizare kilometraj
                             alert('Revizie adăugată!');
                         } else {
                             alert('Eroare: ' + data.error);
@@ -1094,7 +1359,7 @@ app.get('/', requireAuth, (req, res) => {
                     });
                 });
                 
-                // ==================== FORMULAR DOCUMENTE - VERZIUNE CORECTATĂ ====================
+                // Form document
                 document.getElementById('form-document').addEventListener('submit', function(e) {
                     e.preventDefault();
                     
@@ -1216,16 +1481,16 @@ app.get('/api/masini', requireAuth, (req, res) => {
 });
 
 app.post('/api/masini', requireAuth, (req, res) => {
-    const { numar_inmatriculare, marca, model, an_fabricatie, tip_combustibil, culoare, serie_sasiu } = req.body;
+    const { numar_inmatriculare, marca, model, an_fabricatie, tip_combustibil, culoare, serie_sasiu, kilometraj_curent } = req.body;
     
     if (!numar_inmatriculare || !marca || !model) {
         return res.status(400).json({ error: 'Număr înmatriculare, marcă și model sunt obligatorii' });
     }
     
     db.run(
-        `INSERT INTO masini (numar_inmatriculare, marca, model, an_fabricatie, tip_combustibil, culoare, serie_sasiu) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [numar_inmatriculare, marca, model, an_fabricatie, tip_combustibil, culoare, serie_sasiu],
+        `INSERT INTO masini (numar_inmatriculare, marca, model, an_fabricatie, tip_combustibil, culoare, serie_sasiu, kilometraj_curent) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [numar_inmatriculare, marca, model, an_fabricatie, tip_combustibil, culoare, serie_sasiu, kilometraj_curent || 0],
         function(err) {
             if (err) {
                 if (err.code === 'SQLITE_CONSTRAINT') {
@@ -1245,6 +1510,31 @@ app.post('/api/masini', requireAuth, (req, res) => {
                 success: true,
                 message: 'Mașină adăugată cu succes!',
                 id: this.lastID 
+            });
+        }
+    );
+});
+
+app.put('/api/masini/:id/kilometraj', requireAuth, (req, res) => {
+    const masinaId = req.params.id;
+    const { kilometraj_curent } = req.body;
+    
+    if (!kilometraj_curent && kilometraj_curent !== 0) {
+        return res.status(400).json({ error: 'Kilometrajul este obligatoriu' });
+    }
+    
+    db.run(
+        'UPDATE masini SET kilometraj_curent = ? WHERE id = ?',
+        [kilometraj_curent, masinaId],
+        function(err) {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            
+            res.json({ 
+                success: true,
+                message: 'Kilometraj actualizat cu succes!'
             });
         }
     );
@@ -1284,23 +1574,26 @@ app.get('/api/masini/:id/alimentari', requireAuth, (req, res) => {
 
 app.post('/api/masini/:id/alimentari', requireAuth, (req, res) => {
     const masinaId = req.params.id;
-    const { data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, locatie } = req.body;
+    const { data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, locatie, numar_factura } = req.body;
     
     if (!cantitate_litri || !cost_total || !km_curent) {
         return res.status(400).json({ error: 'Cantitate, cost și kilometraj sunt obligatorii' });
     }
     
-    calculeazaConsumSiKm(masinaId, km_curent, cantitateLitri, (kmParcursi, consumMediu) => {
+    calculeazaConsumSiKm(masinaId, km_curent, cantitate_litri, (kmParcursi, consumMediu) => {
         
         db.run(
-            `INSERT INTO alimentari (masina_id, data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, km_parcursi, consum_mediu, locatie) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [masinaId, data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, kmParcursi, consumMediu, locatie],
+            `INSERT INTO alimentari (masina_id, data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, km_parcursi, consum_mediu, locatie, numar_factura) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [masinaId, data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, kmParcursi, consumMediu, locatie, numar_factura],
             function(err) {
                 if (err) {
                     res.status(500).json({ error: err.message });
                     return;
                 }
+                
+                // Actualizează kilometrajul mașinii dacă este mai mare
+                actualizeazaKilometrajMasina(masinaId, km_curent);
                 
                 res.json({ 
                     success: true,
@@ -1348,6 +1641,10 @@ app.post('/api/masini/:id/revizii', requireAuth, (req, res) => {
                 res.status(500).json({ error: err.message });
                 return;
             }
+            
+            // Actualizează kilometrajul mașinii dacă este mai mare
+            actualizeazaKilometrajMasina(masinaId, km_curent);
+            
             res.json({ 
                 success: true,
                 message: 'Revizie înregistrată cu succes!',
@@ -1357,7 +1654,7 @@ app.post('/api/masini/:id/revizii', requireAuth, (req, res) => {
     );
 });
 
-// ==================== RUTE DOCUMENTE - VERZIUNE CORECTATĂ ====================
+// ==================== RUTE DOCUMENTE ====================
 app.get('/api/masini/:id/documente', requireAuth, (req, res) => {
     const masinaId = req.params.id;
     
@@ -1441,6 +1738,101 @@ app.delete('/api/documente/:id', requireAuth, (req, res) => {
     });
 });
 
+// ==================== RUTE SINCRONIZARE OSCAR ====================
+app.post('/api/import-oscar', requireAuth, upload.single('csvFile'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'Niciun fișier încărcat' });
+    }
+
+    const results = [];
+    let importCount = 0;
+    let errorCount = 0;
+
+    fs.createReadStream(req.file.path)
+        .pipe(csv())
+        .on('data', (data) => {
+            results.push(data);
+        })
+        .on('end', () => {
+            // Șterge fișierul după procesare
+            fs.unlinkSync(req.file.path);
+
+            if (results.length === 0) {
+                return res.status(400).json({ error: 'Fișierul CSV este gol' });
+            }
+
+            // Procesează fiecare rând
+            results.forEach((row, index) => {
+                const numarInmatriculare = row['Numar_inmatriculare'] || row['numar_inmatriculare'] || row['Numar'] || row['Inmatriculare'];
+                const dataAlimentare = row['Data'] || row['data'] || row['Data_alimentare'] || new Date().toISOString().split('T')[0];
+                const cantitate = parseFloat(row['Cantitate_litri'] || row['Cantitate'] || row['Litri'] || row['cantitate']);
+                const pretPerLitru = parseFloat(row['Pret_litru'] || row['Pret'] || row['Pret_per_litru'] || row['pret']);
+                const costTotal = parseFloat(row['Cost_total'] || row['Cost'] || row['Total'] || row['cost']);
+                const kilometraj = parseInt(row['Kilometraj'] || row['km'] || row['Kilometri'] || row['kilometraj']);
+                const locatie = row['Locatie'] || row['Locatia'] || row['Statie'] || row['locatie'];
+
+                if (!numarInmatriculare || isNaN(cantitate) || isNaN(costTotal) || isNaN(kilometraj)) {
+                    console.error(`Rând ${index + 1} invalid:`, row);
+                    errorCount++;
+                    return;
+                }
+
+                // Găsește mașina după număr de înmatriculare
+                db.get(
+                    'SELECT id FROM masini WHERE numar_inmatriculare = ?',
+                    [numarInmatriculare],
+                    (err, masina) => {
+                        if (err) {
+                            console.error('Eroare la căutarea mașinii:', err);
+                            errorCount++;
+                            return;
+                        }
+
+                        if (!masina) {
+                            console.error(`Mașina cu numărul ${numarInmatriculare} nu a fost găsită`);
+                            errorCount++;
+                            return;
+                        }
+
+                        // Calculează consumul
+                        calculeazaConsumSiKm(masina.id, kilometraj, cantitate, (kmParcursi, consumMediu) => {
+                            
+                            // Inserează alimentarea
+                            db.run(
+                                `INSERT INTO alimentari (masina_id, data_alimentare, cantitate_litri, cost_total, pret_per_litru, km_curent, km_parcursi, consum_mediu, locatie, sincronizat_cu_oscar) 
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                [masina.id, dataAlimentare, cantitate, costTotal, pretPerLitru, kilometraj, kmParcursi, consumMediu, locatie, 1],
+                                function(err) {
+                                    if (err) {
+                                        console.error('Eroare la inserarea alimentării:', err);
+                                        errorCount++;
+                                    } else {
+                                        importCount++;
+                                        
+                                        // Actualizează kilometrajul mașinii
+                                        actualizeazaKilometrajMasina(masina.id, kilometraj);
+                                    }
+
+                                    // Verifică dacă am procesat toate rândurile
+                                    if (importCount + errorCount === results.length) {
+                                        res.json({
+                                            success: true,
+                                            message: `Import complet: ${importCount} alimentări importate, ${errorCount} erori.`
+                                        });
+                                    }
+                                }
+                            );
+                        });
+                    }
+                );
+            });
+        })
+        .on('error', (error) => {
+            console.error('Eroare la procesarea CSV:', error);
+            res.status(500).json({ error: 'Eroare la procesarea fișierului CSV' });
+        });
+});
+
 // Rute rapoarte
 app.get('/api/rapoarte/consum', requireAuth, (req, res) => {
     db.all(`
@@ -1454,6 +1846,28 @@ app.get('/api/rapoarte/consum', requireAuth, (req, res) => {
         WHERE a.consum_mediu IS NOT NULL
         GROUP BY m.id
         ORDER BY consum_mediu DESC
+    `, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json({ raport: rows });
+    });
+});
+
+app.get('/api/rapoarte/revizii', requireAuth, (req, res) => {
+    db.all(`
+        SELECT m.numar_inmatriculare, m.marca, m.model, m.kilometraj_curent,
+               r.km_curent as ultima_revizie_km,
+               r.data_revizie as ultima_revizie_data,
+               s.urmatoarea_revizie_km
+        FROM masini m
+        LEFT JOIN revizii r ON m.id = r.masina_id
+        LEFT JOIN setari_revizii s ON m.id = s.masina_id
+        WHERE r.data_revizie = (
+            SELECT MAX(data_revizie) FROM revizii WHERE masina_id = m.id
+        ) OR r.data_revizie IS NULL
+        ORDER BY m.numar_inmatriculare
     `, (err, rows) => {
         if (err) {
             res.status(500).json({ error: err.message });
@@ -1500,8 +1914,9 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 ========================================');
     console.log('✅ SERVERUL ONLINE A PORNIT CU SUCCES!');
     console.log(`📍 Port: ${PORT}`);
-    console.log('🔐 User: Tzindex');
+    console.log('🔐 User: Tzrkalex');
     console.log('🔑 Parola: Ro27821091');
     console.log('💾 Baza de date: :memory: (online)');
+    console.log('🔄 Sincronizare OSCAR: ACTIVATĂ');
     console.log('🚀 ========================================');
 });
