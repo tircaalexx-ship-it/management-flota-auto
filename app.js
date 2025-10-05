@@ -191,25 +191,89 @@ function createDefaultUser() {
 function addSampleData() {
     const sampleCars = [
         { 
-            numar_inmatriculare: "GJ07ZR", 
-            marca: "BMW", 
-            model: "740XD", 
+            numar_inmatriculare: "GJ12TZR", 
+            marca: "FORD", 
+            model: "TRANSIT CUSTOM", 
             tip_combustibil: "diesel", 
             an_fabricatie: 2018,
-            culoare: "Negru",
-            serie_sasiu: "WBA7E4100JGV38613",
-            kilometraj_curent: 152000
+            culoare: "ALB",
+            serie_sasiu: "WF0YXXTTGYFJ64185",
+            kilometraj_curent: 317879
         },
         { 
-            numar_inmatriculare: "B123ABC", 
-            marca: "Volkswagen", 
-            model: "Transporter", 
+            numar_inmatriculare: "GJ15TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
             tip_combustibil: "diesel", 
             an_fabricatie: 2022,
             culoare: "Alb",
-            kilometraj_curent: 45000
+            kilometraj_curent: 312560
+        },
+        { 
+            numar_inmatriculare: "GJ09FAN", 
+            marca: "VW", 
+            model: "TRANSPORTER", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2015,
+            culoare: "Alb",
+            kilometraj_curent: 154711
+        },
+        { 
+            numar_inmatriculare: "GJ39FAN", 
+            marca: "FORD", 
+            model: "TRANSIT CONECT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2008,
+            culoare: "Alb",
+            kilometraj_curent: 132711
+        },
+        { 
+            numar_inmatriculare: "GJ16FAN", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2014,
+            culoare: "Alb",
+            kilometraj_curent: 287528
+        },
+        { 
+            numar_inmatriculare: "GJ39TZR", 
+            marca: "NISSAN", 
+            model: "NV-200", 
+            tip_combustibil: "ELECTRIC", 
+            an_fabricatie: 2022,
+            culoare: "Alb",
+            kilometraj_curent: 47528
+        },
+        { 
+            numar_inmatriculare: "GJ11TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2014,
+            culoare: "Alb",
+            kilometraj_curent: 371328
+        },
+        { 
+            numar_inmatriculare: "GJ43TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "electric", 
+            an_fabricatie: 2024,
+            culoare: "Alb",
+            kilometraj_curent: 50000
+        },
+        { 
+            numar_inmatriculare: "GJ08TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2014,
+            culoare: "Alb",
+            kilometraj_curent: 309909
         }
-    ];
+
+    ]
 
     sampleCars.forEach(car => {
         db.run(
@@ -442,7 +506,7 @@ app.get('/', requireAuth, (req, res) => {
     </head>
     <body>
         <div class="header">
-            <h1>🚗 Management Flotă Auto - SISTEM COMPLET</h1>
+            <h1>🚗 Management Flotă Auto - APA VIE SRL</h1>
             <p>Bun venit, ${req.session.user.nume}!</p>
             <button class="btn btn-danger" onclick="logout()">🚪 Delogare</button>
         </div>
