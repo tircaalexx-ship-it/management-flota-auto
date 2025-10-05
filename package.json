@@ -1,7 +1,7 @@
 {
-  "name": "management-flota-auto",
-  "version": "1.0.0",
-  "description": "Sistem de management pentru flota auto",
+  "name": "management-flota-auto-online",
+  "version": "2.0.0",
+  "description": "Sistem de management pentru flota auto - Versiune Online",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
@@ -13,7 +13,7 @@
     "bcryptjs": "^2.4.3",
     "express-session": "^1.17.3"
   },
-  "keywords": ["flota", "auto", "management"],
+  "keywords": ["flota", "auto", "management", "online"],
   "author": "Alexandru Tirca",
   "license": "MIT"
 }
