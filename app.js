@@ -196,13 +196,14 @@ function addSampleData() {
             kilometraj_curent: 40000
         },
         { 
-            numar_inmatriculare: "GJ09TZR", 
-            marca: "Volkswagen", 
-            model: "Transporter", 
+            numar_inmatriculare: "GJ19TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
             tip_combustibil: "diesel", 
             an_fabricatie: 2016,
             culoare: "Alb",
-            kilometraj_curent: 154060
+            serie_sasiu: "WF0EXXTTREKM10084",
+            kilometraj_curent: 205220
         },
         { 
             numar_inmatriculare: "GJ12TZR", 
@@ -221,15 +222,17 @@ function addSampleData() {
             tip_combustibil: "diesel", 
             an_fabricatie: 2022,
             culoare: "Alb",
+            serie_sasiu: "WF0XXXTTGXGD24338",
             kilometraj_curent: 312560
         },
         { 
             numar_inmatriculare: "GJ09FAN", 
-            marca: "VW", 
+            marca: "Volkswagen", 
             model: "TRANSPORTER", 
             tip_combustibil: "diesel", 
             an_fabricatie: 2015,
             culoare: "Alb",
+            serie_sasiu: "WV1ZZZ7HZEX009092",
             kilometraj_curent: 154711
         },
         { 
@@ -239,6 +242,7 @@ function addSampleData() {
             tip_combustibil: "diesel", 
             an_fabricatie: 2008,
             culoare: "Alb",
+            serie_sasiu: "WF0UXXTTPU8R31219",
             kilometraj_curent: 132711
         },
         { 
@@ -247,6 +251,7 @@ function addSampleData() {
             model: "TRANSIT", 
             tip_combustibil: "diesel", 
             an_fabricatie: 2014,
+            serie_sasiu: "WF0XXXTTFXBK52641",
             culoare: "Alb",
             kilometraj_curent: 287528
         },
@@ -257,6 +262,7 @@ function addSampleData() {
             tip_combustibil: "ELECTRIC", 
             an_fabricatie: 2022,
             culoare: "Alb",
+            serie_sasiu: "VSKHAAME0U0629171",
             kilometraj_curent: 47528
         },
         { 
@@ -266,6 +272,7 @@ function addSampleData() {
             tip_combustibil: "diesel", 
             an_fabricatie: 2014,
             culoare: "Alb",
+            serie_sasiu: "WF0XXXBDFX7U42734",
             kilometraj_curent: 371328
         },
         { 
@@ -275,6 +282,7 @@ function addSampleData() {
             tip_combustibil: "electric", 
             an_fabricatie: 2024,
             culoare: "Alb",
+            serie_sasiu: "WF0EXXTTRBPP35230",
             kilometraj_curent: 50000
         },
         { 
@@ -284,9 +292,259 @@ function addSampleData() {
             tip_combustibil: "diesel", 
             an_fabricatie: 2014,
             culoare: "Alb",
+            serie_sasiu: "WF0XXXTTFXCC55230",
             kilometraj_curent: 309909
+        },
+        { 
+            numar_inmatriculare: "GJ36TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2018,
+            culoare: "Alb",
+            serie_sasiu: "WF0YXXTTGYGS22985",
+            kilometraj_curent: 276632
+        },
+        { 
+            numar_inmatriculare: "GJ03TZR", 
+            marca: "RENAULT", 
+            model: "KANGOO", 
+            tip_combustibil: "electric", 
+            an_fabricatie: 2021,
+            culoare: "Alb",
+            serie_sasiu: "VF1FW000965992982",
+            kilometraj_curent: 276632
+        },
+        { 
+            numar_inmatriculare: "GJ35TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2021,
+            culoare: "Alb",
+            serie_sasiu: "WF0XXXTTGXJB02794",
+            kilometraj_curent: 319995
+        },
+        { 
+            numar_inmatriculare: "GJ30TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2016,
+            culoare: "Alb",
+            serie_sasiu: "WF0XXXTTGXEU43653",
+            kilometraj_curent: 381946
+        },
+        { 
+            numar_inmatriculare: "GJ44FAN", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2016,
+            culoare: "Alb",
+            serie_sasiu: "WF0WXXTACWHB19129",
+            kilometraj_curent: 0
+        },
+        { 
+            numar_inmatriculare: "GJ21TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2018,
+            culoare: "Alb",
+            serie_sasiu: "WF0XXXTTFXDK82839",
+            kilometraj_curent: 334578
+        },
+        { 
+            numar_inmatriculare: "GJ46TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "electric", 
+            an_fabricatie: 2024,
+            culoare: "Alb",
+            serie_sasiu: "WF0EXXTTRBPM33213",
+            kilometraj_curent: 74524
+        },
+        { 
+            numar_inmatriculare: "GJ45TZR", 
+            marca: "RENAULT", 
+            model: "MAEVA", 
+            tip_combustibil: "ELECTRIC", 
+            an_fabricatie: 2022,
+            culoare: "Alb",
+            serie_sasiu: "VF1VAE00064162873",
+            kilometraj_curent:0
+        },
+        { 
+            numar_inmatriculare: "GJ44TZR", 
+            marca: "RENAULT", 
+            model: "ZOE", 
+            tip_combustibil: "ELECTRIC", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "VF1AGVYB055164402",
+            kilometraj_curent: 0
+        },
+        { 
+            numar_inmatriculare: "GJ14TZR", 
+            marca: "RENAULT", 
+            model: "KANGOO", 
+            tip_combustibil: "electric", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "VF1FW000265992984",
+            kilometraj_curent: 12345
+        },
+        { 
+            numar_inmatriculare: "GJ16TZR", 
+            marca: "RENAULT", 
+            model: "KANGOO", 
+            tip_combustibil: "electric", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "VF1FW000466092470",
+            kilometraj_curent: 200000
+        },
+        { 
+            numar_inmatriculare: "GJ25TZR", 
+            marca: "RENAULT", 
+            model: "KANGOO", 
+            tip_combustibil: "electric", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "VF1FW0ZHC47559358",
+            kilometraj_curent: 40198
+        },
+        { 
+            numar_inmatriculare: "GJ23TZR", 
+            marca: "RENAULT", 
+            model: "KANGOO", 
+            tip_combustibil: "electric", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "VF1FW000565992980",
+            kilometraj_curent: 40198
+        },
+        { 
+            numar_inmatriculare: "GJ37TZR", 
+            marca: "RENAULT", 
+            model: "KANGOO", 
+            tip_combustibil: "electric", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "VF1FW000065992983",
+            kilometraj_curent: 0
+        },
+        { 
+            numar_inmatriculare: "GJ42TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "WF0YXXTTGYJR56387",
+            kilometraj_curent: 183376
+        },
+        { 
+            numar_inmatriculare: "GJ31TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "WF0XXXTTGXJM72014",
+            kilometraj_curent: 224054
+        },
+        { 
+            numar_inmatriculare: "GJ33TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "WF0XXXTTGXGK89342",
+            kilometraj_curent: 329815
+        },
+        { 
+            numar_inmatriculare: "GJ22TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "WF0XXXTTGXHB59987",
+            kilometraj_curent: 165220
+        },
+        { 
+            numar_inmatriculare: "GJ13TZR", 
+            marca: "FORD", 
+            model: "TRANSIT CUSTOM", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "WFOYXXTTGYEB84484",
+            kilometraj_curent: 402491
+        },
+        { 
+            numar_inmatriculare: "GJ04FAN", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "WF0VXXGBFV1D1374",
+            kilometraj_curent: 538035
+        },
+        { 
+            numar_inmatriculare: "GJ23TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2015,
+            culoare: "Alb",
+            serie_sasiu: "WF0XXXTTFXCR86513",
+            kilometraj_curent: 373544
+        },
+        { 
+            numar_inmatriculare: "GJ41TZR", 
+            marca: "FORD", 
+            model: "TRANSIT", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "WF0XXXTTGXJT01004",
+            kilometraj_curent: 376085
+        },
+        { 
+            numar_inmatriculare: "GJ64FAN", 
+            marca: "MERCEDES", 
+            model: "SPRINTER", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2019,
+            culoare: "Alb",
+            serie_sasiu: "WDB906155GN682883",
+            kilometraj_curent: 329815
+        },
+        { 
+            numar_inmatriculare: "GJ18TZR", 
+            marca: "SUZUKY", 
+            model: "SWIFT", 
+            tip_combustibil: "benzina", 
+            an_fabricatie: 2019,
+            culoare: "ROSU",
+            serie_sasiu: "TSMMZC21S00362485",
+            kilometraj_curent: 0
         }
+
+
     ];
+    app.get('/admin', (req, res) => {
+  res.sendFile(__dirname + '/public/admin.html');
+});
+
+app.post('/edit-masina', (req, res) => {
+  // cod pentru editare mașini
+});
 
     sampleCars.forEach(car => {
         db.run(
