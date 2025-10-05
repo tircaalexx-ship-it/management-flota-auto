@@ -2,15 +2,16 @@
   "name": "management-flota-auto",
   "version": "1.0.0",
   "description": "Sistem de management pentru flota auto",
-  "main": "server.js",
+  "main": "app.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node app.js",
+    "dev": "node app.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
     "express": "^4.21.2",
-    "express-session": "^1.18.2",
+    "jsonwebtoken": "^9.0.2",
     "sqlite3": "^5.1.7"
   },
   "keywords": [
@@ -19,13 +20,5 @@
     "management"
   ],
   "author": "Tzrkalex",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/TZRKALEX/management-flota-auto.git"
-  },
-  "bugs": {
-    "url": "https://github.com/TZRKALEX/management-flota-auto/issues"
-  },
-  "homepage": "https://github.com/TZRKALEX/management-flota-auto#readme"
+  "license": "MIT"
 }
