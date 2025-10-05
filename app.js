@@ -186,23 +186,23 @@ function createDefaultUser() {
 function addSampleData() {
     const sampleCars = [
         { 
-            numar_inmatriculare: "GJ17TZR", 
-            marca: "PEUGEOT", 
-            model: "EXPERT", 
-            tip_combustibil: "ELECTRIC", 
-            an_fabricatie: 2020,
-            culoare: "ALB",
-            serie_sasiu: "VF3V1ZKXZMZ083957",
-            kilometraj_curent: 40000
+            numar_inmatriculare: "GJ07ZR", 
+            marca: "BMW", 
+            model: "740XD", 
+            tip_combustibil: "diesel", 
+            an_fabricatie: 2018,
+            culoare: "Negru",
+            serie_sasiu: "WBA7E4100JGV38613",
+            kilometraj_curent: 152000
         },
         { 
-            numar_inmatriculare: "GJ09FAN", 
+            numar_inmatriculare: "B123ABC", 
             marca: "Volkswagen", 
             model: "Transporter", 
             tip_combustibil: "diesel", 
-            an_fabricatie: 2016,
+            an_fabricatie: 2022,
             culoare: "Alb",
-            kilometraj_curent: 154060
+            kilometraj_curent: 45000
         },
         { 
             numar_inmatriculare: "GJ12TZR", 
@@ -305,8 +305,8 @@ function addSampleData() {
                         [masinaId, 10000]
                     );
 
-                    // Adaugă documente exemplu pentru prima mașină (GJ17TZR)
-                    if (car.numar_inmatriculare === "GJ17TZR") {
+                    // Adaugă documente exemplu pentru prima mașină (GJ07ZR)
+                    if (car.numar_inmatriculare === "GJ07ZR") {
                         const today = new Date();
                         const nextYear = new Date(today);
                         nextYear.setFullYear(today.getFullYear() + 1);
@@ -336,7 +336,7 @@ function addSampleData() {
                                 [masinaId, doc.tip_document, doc.numar_document, doc.data_emitere, doc.data_expirare, doc.cost, doc.furnizor]
                             );
                         });
-                        console.log('✅ Documente exemplu adăugate pentru mașina GJ17TZR');
+                        console.log('✅ Documente exemplu adăugate pentru mașina GJ07ZR');
                     }
                 }
             }
@@ -512,7 +512,7 @@ app.get('/login', (req, res) => {
     </head>
     <body>
         <div class="login-box">
-            <h2>Management Flota APA VIE SRL Tg-Jiu</h2>
+            <h2>Management Flota Auto Fan Courier TG-Jiu</h2>
             <div class="error" id="errorMessage"></div>
             <form id="loginForm">
                 <input type="text" id="username" placeholder="Username" value="Tzrkalex" required>
