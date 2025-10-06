@@ -1,26 +1,24 @@
 {
   "name": "management-flota-auto",
   "version": "1.0.0",
-  "description": "Sistem complet de management flotă auto",
+  "description": "Sistem securizat de management flotă auto",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "node app.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "sqlite3": "^5.1.6",
     "bcryptjs": "^2.4.3",
-    "express-session": "^1.17.3",
-    "axios": "^1.6.0"
+    "express": "^4.21.2",
+    "express-session": "^1.18.2",
+    "sqlite3": "^5.1.7"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "keywords": ["flota", "auto", "management"],
-  "author": "Tzrkalex",
+  "keywords": [
+    "flota",
+    "auto",
+    "management",
+    "nodejs"
+  ],
+  "author": "Alexandru Tirca",
   "license": "MIT"
 }

@@ -25,17 +25,6 @@ async function trimiteNotificare(mesaj) {
     }
 }
 
-// Test funcție (opțional)
-async function testeazaTelegram() {
-    try {
-        await trimiteNotificare('🔔 TEST: Aplicația flota auto este online!');
-        console.log('✅ Notificare Telegram trimisă cu succes!');
-    } catch (error) {
-        console.log('❌ Eroare notificare Telegram');
-    }
-}
-
 module.exports = { 
-    trimiteNotificare,
-    testeazaTelegram
+    trimiteNotificare
 };
