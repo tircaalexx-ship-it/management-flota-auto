@@ -10,3 +10,7 @@ services:
         value: production
       - key: SESSION_SECRET
         generateValue: true
+    disk:
+      name: data
+      mountPath: /tmp/data
+      sizeGB: 1
