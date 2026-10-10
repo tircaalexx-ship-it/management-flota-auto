@@ -1,0 +1,771 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<a href="/" style="position:fixed;top:10px;left:10px;z-index:9999;background:#4361ee;color:#fff;padding:6px 12px;border-radius:6px;text-decoration:none;font:600 13px sans-serif">← Înapoi la Flotă</a>
+
+<title>Verificare PDA și GPS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: foaie de lucru pe o coloană — cifrele zilei, concluziile, harta mare, apoi tabelele pe file. Temă deschisă, aleasă intenționat. */
+:root{
+  --bg:#f3f5f4; --card:#ffffff; --ink:#18211f; --muted:#5f6b68; --line:#dde3e1; --soft:#eaefed;
+  --accent:#0b5d57; --track:#1d5fd1; --after:#8a9390; --opt:#a3246f;
+  --ok:#1c8a4d; --warn:#c27400; --bad:#c9341f; --box:#5a49c9; --ret:#4d5660;
+  --ok-bg:#e3f4ea; --warn-bg:#fdf0d9; --bad-bg:#fde6e1; --box-bg:#eae7fb; --ret-bg:#e9ecee;
+  --mapbg:#e9eeeb;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:24px 56px;display:flex;flex-direction:column;gap:22px}
+h1{font-size:26px;line-height:1.2;margin:0;font-weight:700;text-wrap:balance}
+h2{font-size:17px;margin:0;font-weight:600}
+.sub{color:var(--muted);margin-top:4px}
+.sub b{color:var(--ink);font-weight:600}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.kpi .v{font-size:28px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi .v small{font-size:15px;font-weight:500;color:var(--muted)}
+.kpi .l{font-weight:600;margin-top:6px}
+.kpi .d{color:var(--muted);font-size:13px;margin-top:2px}
+.find{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.find ul{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+.find li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start}
+.find li>div{min-width:0}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap;line-height:1.5}
+.t-bate{background:var(--ok-bg);color:var(--ok)} .t-in_mers{background:var(--warn-bg);color:var(--warn)} .t-nu_bate{background:var(--bad-bg);color:var(--bad)}
+.t-fanbox{background:var(--box-bg);color:var(--box)} .t-retur,.t-nogps{background:var(--ret-bg);color:var(--ret)} .t-info{background:var(--soft);color:var(--accent)}
+.mapcard{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:600 14px var(--sans);padding:8px 14px;border:0;background:var(--card);color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg button+button{border-left:1px solid var(--line)}
+button:focus-visible,input:focus-visible,tr:focus-visible{outline:2px solid var(--track);outline-offset:2px}
+.time{display:flex;align-items:center;gap:10px;flex:1 1 280px;min-width:0}
+.time input{flex:1;min-width:0;accent-color:var(--accent)}
+.time output{font:500 14px var(--mono);white-space:nowrap}
+#map{position:relative;height:780px;background:var(--mapbg);overflow:hidden;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#map.drag{cursor:grabbing}
+#map canvas{position:absolute;inset:0;width:100%;height:100%}
+#ov{position:absolute;inset:0;pointer-events:none}
+.mk{position:absolute;transform:translate(-50%,-50%);border-radius:50%;display:grid;place-items:center;color:#fff;font:600 12px var(--mono);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35);pointer-events:auto;cursor:pointer;padding:0}
+.mk.dim{opacity:.22}
+.mk.sel{outline:3px solid var(--ink);outline-offset:1px;z-index:5}
+.mk.c-bate{background:var(--ok)} .mk.c-in_mers{background:var(--warn)} .mk.c-nu_bate{background:var(--bad)} .mk.c-fanbox{background:var(--box)}
+.mk.c-retur,.mk.c-nogps{background:var(--card);color:var(--ret);border-color:var(--ret)}
+.mk.c-opt{background:var(--opt)}
+.mk.sq{border-radius:4px;background:var(--card);color:var(--ink);border:2px solid var(--ink);font-size:11px}
+.mk.car{background:var(--ink);width:16px;height:16px;border:3px solid #ffd23f;z-index:6;pointer-events:none}
+.mk.dep{border-radius:4px;background:var(--ink);font-size:11px}
+.lbl{position:absolute;transform:translate(14px,-50%);font:600 12px var(--sans);color:var(--muted);white-space:nowrap;text-shadow:0 0 3px var(--mapbg),0 0 3px var(--mapbg),0 0 3px var(--mapbg)}
+.zoom{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:6px;z-index:8}
+.zoom button{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 18px var(--sans);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.zoom button.fit{font-size:11px}
+.attr{position:absolute;right:0;bottom:0;background:rgba(255,255,255,.85);color:#333;font-size:11px;padding:1px 6px;z-index:8}
+#info{position:absolute;left:10px;top:10px;z-index:11;width:min(360px,calc(100% - 20px));max-height:min(380px,calc(100% - 20px));overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.18);padding:12px 14px;font-size:13.5px;cursor:auto;user-select:text;-webkit-user-select:text}
+#lg{position:absolute;left:10px;top:10px;z-index:8;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.14);padding:8px 12px;font-size:13px;width:max-content;max-width:min(340px,calc(100% - 70px));cursor:auto}
+#lg summary{font-weight:600;cursor:pointer}
+#lg table{width:auto;font-size:13px;margin-top:6px}
+#lg td{padding:2px 10px 2px 0;border:0;vertical-align:middle;white-space:nowrap}
+#lg td.k{text-align:right;font-family:var(--mono);color:var(--muted);padding-right:0}
+#lg .sw{display:inline-block;width:26px;height:5px;border-radius:3px;vertical-align:middle}
+#lg p{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.35}
+#tip{position:absolute;z-index:10;pointer-events:none;background:var(--ink);color:#fff;border-radius:8px;padding:7px 10px;font-size:13px;line-height:1.35;white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,.3)}
+#tip b{font-size:16px}
+#tip .ov{color:#ffb4a8;font-weight:600}
+#tip .okc{color:#9fe3b9;font-weight:600}
+#tip .wrn{color:#ffd27a;font-weight:600}
+#tip .box{color:#c9c1ff;font-weight:600}
+#tip .ret{color:#d5dbe0;font-weight:600}
+#hdot{position:absolute;width:14px;height:14px;border-radius:50%;border:3px solid #fff;background:var(--ink);transform:translate(-50%,-50%);pointer-events:none;z-index:7;box-shadow:0 0 0 2px var(--ink)}
+#info h3{margin:0 24px 6px 0;font-size:14.5px}
+#info .x{position:absolute;top:6px;right:6px;border:0;background:none;font-size:20px;line-height:1;color:var(--muted);cursor:pointer;padding:4px 8px}
+#info .it{padding:7px 0;border-top:1px solid var(--line)}
+#info .it:first-of-type{border-top:0}
+#info a{color:var(--track)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;padding:10px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.ln{width:22px;height:0;border-top:3px solid;display:inline-block}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tabs button{font:600 14px var(--sans);padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--muted);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.chips button{font:600 13px var(--sans);padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--muted);cursor:pointer}
+.chips button[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);background:var(--soft)}
+.tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;font-weight:600}
+td{padding:9px 12px;border-bottom:1px solid var(--soft);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tbody tr.go{cursor:pointer}
+tbody tr.go:hover{background:var(--soft)}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td .a{color:var(--muted);font-size:13px}
+td .awb{font:12px var(--mono);color:var(--muted)}
+.note{color:var(--muted);font-size:13px;max-width:70ch}
+.cmp{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0}
+@media (max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}.cmp{grid-template-columns:1fr}#map{height:70vh;min-height:420px}h1{font-size:22px}}
+@media (max-width:460px){.kpis{grid-template-columns:1fr}}
+
+.up{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:18px}
+.up h1{font-size:26px}
+.drops{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.drop{position:relative;border:2px dashed var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:6px;min-width:0;cursor:pointer;background:var(--bg)}
+.drop:hover,.drop.over{border-color:var(--accent)}
+.drop.ok{border-style:solid;border-color:var(--ok);background:var(--ok-bg)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.drop b{font-size:15px}.drop .fn{font:13px var(--mono);color:var(--ink);word-break:break-all}
+.drop .hint{color:var(--muted);font-size:13px}
+.opts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.opts label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+.opts input,.opts select{font:14px var(--sans);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);min-width:0}
+.go{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.btn{font:600 15px var(--sans);padding:10px 18px;border-radius:8px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.sec{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.msg{font-size:14px;color:var(--muted)}
+.err{background:var(--bad-bg);color:var(--bad);border-radius:8px;padding:10px 14px;font-size:14px}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.priv{font-size:13px;color:var(--muted)}
+@media (max-width:820px){.drops,.opts{grid-template-columns:1fr}}
+</style>
+<div class="wrap" id="upwrap">
+  <section class="up" id="up">
+    <div>
+      <h1>Verificare PDA și GPS</h1>
+      <div class="sub">Încarci raportul PDA al unui curier și exportul GPS al mașinii lui pentru aceeași zi. Pagina leagă fiecare colet de locul în care era mașina la ora confirmării și îți arată ce bate, ce nu bate, pauzele, viteza și ruta optimă.</div>
+    </div>
+    <div class="drops">
+      <label class="drop" id="d-pda"><input type="file" id="f-pda" accept=".xlsx"><b>1. Raportul PDA</b><span class="hint">Excel .xlsx, exportul PDA al curierului, cu „Ora conf” și „Curier dest”.</span><span class="fn" id="n-pda">Alege fișierul sau trage-l aici</span></label>
+      <label class="drop" id="d-gps"><input type="file" id="f-gps" accept=".kml"><b>2. Exportul GPS</b><span class="hint">Fișier .kml din TrackGPS, pentru aceeași zi, cu toate punctele traseului.</span><span class="fn" id="n-gps">Alege fișierul sau trage-l aici</span></label>
+    </div>
+    <div class="opts">
+      <label for="o-name">Nume curier (opțional)<input id="o-name" placeholder="se ia din raport"></label>
+      <label for="o-car">Număr mașină (opțional)<input id="o-car" placeholder="se ia din numele fișierului GPS"></label>
+      <label for="o-dep">Depozit (opțional)<input id="o-dep" placeholder="automat, sau 44.3008, 23.8366"></label>
+    </div>
+    <div class="go"><button class="btn" id="run" disabled>Analizează</button><span class="msg" id="msg">Alege cele două fișiere.</span></div>
+    <div class="err" id="err" hidden></div>
+    <div class="priv">Fișierele se citesc doar în browserul tău; nu se trimit nicăieri și nu rămân în pagină după ce o închizi. Depozitul, dacă nu îl completezi, este locul în care mașina a stat cel mai mult înainte de prima livrare.</div>
+  </section>
+</div>
+<div id="reswrap" hidden>
+<div class="wrap" style="padding-bottom:0"><div class="toolbar"><button class="btn sec" id="again">Încarcă alt curier</button><button class="btn" id="dl" hidden>Descarcă pagina cu harta cu străzi</button><span class="msg" id="dlmsg"></span></div></div>
+<div class="wrap">
+  <header>
+    <h1 id="h1"></h1>
+    <div class="sub" id="sub"></div>
+  </header>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="find">
+    <h2>Ce reiese</h2>
+    <ul id="find"></ul>
+  </section>
+
+  <section class="mapcard">
+    <div class="bar">
+      <div class="seg" role="group" aria-label="Ce se vede pe hartă">
+        <button id="m-real" aria-pressed="true">Ce a făcut</button>
+        <button id="m-opt" aria-pressed="false">Ruta optimă</button>
+      </div>
+      <div class="seg" role="group" aria-label="Culoarea traseului" id="colbox">
+        <button id="c-lim" aria-pressed="true">Față de limită</button>
+        <button id="c-spd" aria-pressed="false">Viteză</button>
+        <button id="c-hr" aria-pressed="false">Oră</button>
+      </div>
+      <div class="time" id="timebox">
+        <label for="tm" class="note">Ora</label>
+        <input type="range" id="tm" min="0" max="86400" step="60" value="86400">
+        <output id="tmo" for="tm"></output>
+      </div>
+    </div>
+    <div id="map">
+      <canvas id="cv"></canvas>
+      <div id="ov"></div>
+      <div class="zoom"><button id="zi" aria-label="Mărește">+</button><button id="zo" aria-label="Micșorează">−</button><button id="zf" class="fit" aria-label="Tot traseul">Tot</button><button id="zs" class="fit" aria-label="Schimbă harta" hidden>Satelit</button></div>
+      <div class="attr" id="attr" hidden>Hartă: Esri, © OpenStreetMap</div>
+      <details id="lg" open></details>
+      <div id="tip" hidden></div><div id="hdot" hidden></div>
+      <div id="info" hidden></div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="legend" id="nomap" hidden style="color:var(--ink)">Pagina din Claude nu poate încărca străzile, de aceea fondul e gri. Pentru harta cu străzi, apasă „Descarcă pagina cu harta cu străzi” de deasupra și deschide fișierul în Chrome sau Edge.</div>
+  </section>
+
+  <section>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tb-match" aria-selected="true">Potrivire PDA – GPS</button>
+      <button role="tab" id="tb-uns" aria-selected="false">Opriri fără scanare</button>
+      <button role="tab" id="tb-opt" aria-selected="false">Ruta optimă</button>
+    </div>
+    <div id="p-match"><div class="chips" id="chips"></div><div class="tw"><table><thead><tr><th>Nr.</th><th>Ora conf.</th><th>Destinatar și adresă</th><th>Localitate</th><th>Rezultat</th><th>Ce arată GPS-ul</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+    <div id="p-uns" hidden></div>
+    <div id="p-opt" hidden></div>
+  </section>
+</div>
+
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+/* Potrivire PDA – GPS: citire fișiere + analiză + concluzii. Rulează în browser (și în Node pentru test). */
+(function (root) {
+'use strict';
+const R2 = Math.PI / 180;
+function hav(a, b) { const la1 = a[0] * R2, la2 = b[0] * R2, dl = (b[1] - a[1]) * R2, dp = la2 - la1; const h = Math.sin(dp / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dl / 2) ** 2; return 12742 * Math.asin(Math.sqrt(h)); }
+const pad = n => String(n).padStart(2, '0');
+const hm = s => pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60));
+const hms = s => hm(s) + ':' + pad(Math.floor(s % 60));
+const ro = (x, d = 1) => x.toFixed(d).replace('.', ',');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const distTxt = m => m < 1000 ? (Math.round(m / 10) * 10) + ' m' : ro(m / 1000) + ' km';
+const dur = m => m >= 60 ? Math.floor(m / 60) + ' h ' + pad(m % 60) + ' min' : m + ' min';
+const deacc = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+const clean = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+const title = s => s.toLowerCase().replace(/(^|[\s\-.(/])([a-zăâîșțşţ])/g, (m, a, b) => a + b.toUpperCase());
+
+/* ---------- KML (TrackGPS) */
+function parseKML(text) {
+  const pts = [];
+  const re = /<description>([\s\S]*?)<\/description>/g; let m;
+  const un = s => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+  while ((m = re.exec(text))) {
+    const d = un(m[1]);
+    if (/<b>\s*Stop\s*<\/b>/i.test(d)) continue;
+    const f = {}; d.replace(/([A-Za-z][A-Za-z ]*):\s*([^<]*)/g, (x, k, v) => { f[k.trim()] = v.trim(); return x; });
+    if (!f.Date || !f.Latitude || !f.Longitude) continue;
+    const dm = f.Date.match(/(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2}):(\d{2})/); if (!dm) continue;
+    pts.push({ day: dm[1], t: +dm[2] * 3600 + +dm[3] * 60 + +dm[4], lat: +f.Latitude, lon: +f.Longitude, speed: Math.round(+(f.Speed || 0)) || 0 });
+  }
+  if (!pts.length) throw new Error('În fișierul KML nu am găsit puncte GPS cu dată, coordonate și viteză. Exportul trebuie să fie din TrackGPS, cu toate punctele traseului.');
+  const day = pts[0].day;
+  pts.forEach(p => { if (p.day !== day) p.t += Math.round((Date.parse(p.day) - Date.parse(day)) / 1000); });
+  pts.sort((a, b) => a.t - b.t);
+  return { day, pts };
+}
+
+/* ---------- XLSX (raport PDA) */
+async function parseXLSX(buf, JSZip) {
+  const zip = await JSZip.loadAsync(buf);
+  const rd = async p => { const f = zip.file(p); return f ? f.async('string') : null; };
+  const wb = await rd('xl/workbook.xml'); if (!wb) throw new Error('Fișierul nu pare a fi un Excel .xlsx.');
+  const rels = await rd('xl/_rels/workbook.xml.rels') || '';
+  const sh = wb.match(/<sheet\b[^>]*?r:id="([^"]+)"/); let path = 'xl/worksheets/sheet1.xml';
+  if (sh) { const rm = rels.match(new RegExp('<Relationship\\b[^>]*Id="' + sh[1] + '"[^>]*Target="([^"]+)"')) || rels.match(new RegExp('<Relationship\\b[^>]*Target="([^"]+)"[^>]*Id="' + sh[1] + '"')); if (rm) path = rm[1].startsWith('/') ? rm[1].slice(1) : 'xl/' + rm[1].replace(/^\.\//, ''); }
+  const xml = await rd(path); if (!xml) throw new Error('Nu găsesc foaia de calcul în fișierul Excel.');
+  const ssx = await rd('xl/sharedStrings.xml'); const ss = [];
+  const ent = s => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&');
+  if (ssx) { const r = /<si>([\s\S]*?)<\/si>/g; let m; while ((m = r.exec(ssx))) { let t = ''; m[1].replace(/<t\b[^>]*>([\s\S]*?)<\/t>/g, (x, v) => { t += v; return x; }); ss.push(ent(t)); } }
+  const colIdx = ref => { const L = ref.replace(/\d+/g, ''); let n = 0; for (const ch of L) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
+  const rows = []; const rr = /<row\b[^>]*>([\s\S]*?)<\/row>/g; let rm2;
+  while ((rm2 = rr.exec(xml))) {
+    const row = []; const cr = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g; let c;
+    while ((c = cr.exec(rm2[1]))) {
+      const at = c[1]; const ref = (at.match(/\br="([A-Z]+\d+)"/) || [])[1]; const t = (at.match(/\bt="([^"]+)"/) || [])[1]; const body = c[2] || '';
+      let v = null; const vm = body.match(/<v>([\s\S]*?)<\/v>/);
+      if (t === 's') v = vm ? ss[+vm[1]] : null; else if (t === 'inlineStr') { let s = ''; body.replace(/<t\b[^>]*>([\s\S]*?)<\/t>/g, (x, y) => { s += y; return x; }); v = ent(s); }
+      else if (t === 'str' || t === 'e') v = vm ? ent(vm[1]) : null; else if (vm) v = +vm[1];
+      row[ref ? colIdx(ref) : row.length] = v;
+    }
+    rows.push(row);
+  }
+  if (rows.length < 2) throw new Error('Raportul PDA nu are rânduri.');
+  const h = rows[0].map(x => clean(x));
+  const need = ['AWB', 'Destinatar', 'Adresa Dest', 'Curier dest', 'Status', 'Ora conf'];
+  const miss = need.filter(k => !h.includes(k)); if (miss.length) throw new Error('În raportul PDA lipsesc coloanele: ' + miss.join(', ') + '. Folosește exportul PDA obișnuit, cu capul de tabel pe primul rând.');
+  return rows.slice(1).filter(r => r && r[0] != null && r[0] !== '').map(r => { const o = {}; h.forEach((k, i) => o[k] = r[i] == null ? null : r[i]); return o; });
+}
+function xDate(v) { // -> 'YYYY-MM-DD' or null
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') { const d = new Date(Math.round((v - 25569) * 86400) * 1000); return d.toISOString().slice(0, 10); }
+  const s = String(v).trim(); let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[1] + '-' + m[2] + '-' + m[3];
+  m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/); if (m) return m[3] + '-' + pad(+m[2]) + '-' + pad(+m[1]); return null;
+}
+function xTime(v) { // -> seconds of day or null
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') { const f = v - Math.floor(v); return Math.round(f * 86400) % 86400; }
+  const m = String(v).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/); return m ? +m[1] * 3600 + +m[2] * 60 + +(m[3] || 0) : null;
+}
+
+/* ---------- analiză */
+function rng(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const LOCFIX = { Mlecanesti: 'Mlecănești', Urechesti: 'Urechești', Calinesti: 'Călinești', Murgasi: 'Murgași', Velesti: 'Velești', Bulzesti: 'Bulzești', Saliste: 'Săliște', Fratila: 'Frățila', 'Simnicu de Jos': 'Șimnicu de Jos', Sarbatoarea: 'Sărbătoarea', Terpezita: 'Terpezița', Calugarei: 'Călugărei', 'Seaca de Padure': 'Seaca de Pădure', 'Rachita de Jos': 'Răchita de Jos', Sarsca: 'Sârsca', 'Botosesti-Paia': 'Botoșești-Paia', Plesoi: 'Pleșoi', Urdinita: 'Urdinița', Bucovat: 'Bucovăț', Isalnita: 'Ișalnița', Almaj: 'Almăj', 'Cotofenii din Fata': 'Coțofenii din Față', Sitoaia: 'Șitoaia', Mosneni: 'Moșneni', Pielesti: 'Pielești' };
+const STOP = new Set(['str', 'strada', 'stranda', 'nr', 'numar', 'bloc', 'bl', 'sc', 'scara', 'et', 'etaj', 'ap', 'craiova', 'cod', 'postal', 'sat', 'com', 'comuna', 'judetul', 'jud', 'dolj', 'casa', 'cartier', 'vis', 'bd', 'bulevardul', 'sos', 'soseaua', 'sosea']);
+function streetKey(addr, city) { const w = (deacc(addr).toLowerCase().match(/[a-z]+/g) || []).filter(x => !STOP.has(x) && x !== city && x.length > 2); return w.length ? w.slice(0, 2).join(' ') : null; }
+
+function analyze(gps, rows, opts, progress) {
+  opts = opts || {}; progress = progress || (() => {});
+  const pts = gps.pts, n = pts.length, P = pts.map(p => [p.lat, p.lon]), day = gps.day;
+  if (n < 10) throw new Error('Exportul GPS are prea puține puncte.');
+  // opriri
+  const still = i => { const g = pts[i + 1].t - pts[i].t, d = hav(P[i], P[i + 1]) * 1000; return g >= 8 && d / g * 3.6 < 4; };
+  const eps = []; let i = 0;
+  while (i < n - 1) {
+    if (still(i)) { let j = i; while (j < n - 1 && (still(j) || (hav(P[i], P[j + 1]) * 1000 < 35 && pts[j + 1].t - pts[j].t < 45))) j++; if (pts[j].t - pts[i].t >= 25) eps.push({ s: pts[i].t, e: pts[j].t, lat: P[i][0], lon: P[i][1] }); i = Math.max(j, i + 1); }
+    else i++;
+  }
+  for (let k = 1; k < n - 1; k++) if (pts[k].speed === 0 && !eps.some(e => e.s <= pts[k].t && pts[k].t <= e.e)) eps.push({ s: pts[k].t, e: pts[k].t, lat: P[k][0], lon: P[k][1], micro: true });
+  eps.sort((a, b) => a.s - b.s);
+  const pos = t => { if (t <= pts[0].t) return P[0]; if (t >= pts[n - 1].t) return P[n - 1]; let lo = 0, hi = n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m].t <= t) lo = m; else hi = m; } const a = pts[lo], b = pts[hi], f = (t - a.t) / Math.max(1, b.t - a.t); return [a.lat + f * (b.lat - a.lat), a.lon + f * (b.lon - a.lon)]; };
+  const spdAt = t0 => { const v = pts.filter(p => p.t >= t0 && p.t <= t0 + 59).map(p => p.speed); if (v.length) return Math.round(v.reduce((a, b) => a + b, 0) / v.length); return Math.round(hav(pos(t0), pos(t0 + 59)) * 60); };
+  const nearEp = t0 => { const t1 = t0 + 59; let best = null; for (const e of eps) { const gap = e.e < t0 ? t0 - e.e : e.s > t1 ? -(e.s - t1) : 0; if (!best || Math.abs(gap) < Math.abs(best[0])) best = [gap, e]; } return best || [9e9, { s: t0, e: t0, lat: pos(t0)[0], lon: pos(t0)[1] }]; };
+
+  // rânduri PDA
+  const cnt0 = {}; rows.forEach(r => { const c = clean(r['Curier dest']); if (c) cnt0[c] = (cnt0[c] || 0) + 1; });
+  const code = opts.code || Object.keys(cnt0).sort((a, b) => cnt0[b] - cnt0[a])[0];
+  if (!code) throw new Error('Nu găsesc codul curierului în coloana „Curier dest”.');
+  const oc = {}; rows.forEach(r => { const c = clean(r['Oras dest']); if (c && !/^HUB/i.test(c)) oc[c] = (oc[c] || 0) + 1; });
+  const cityName = opts.cityName || Object.keys(oc).sort((a, b) => oc[b] - oc[a])[0] || 'Craiova';
+  const city = deacc(cityName).toLowerCase();
+  const dels = [], picks = [], oth = [];
+  for (const r of rows) {
+    const cd = clean(r['Curier dest']), ce = clean(r['Curier Exp']);
+    if (ce === code && cd !== code) { const tr = xTime(r['Ora Ridicare']); picks.push({ awb: clean(r.AWB), t: tr != null ? hm(tr) : null, exp: clean(r.Expeditor), sameday: xDate(r['Data AWB']) === day }); continue; }
+    if (cd && cd !== code) { const tc = xTime(r['Ora conf']); oth.push({ awb: clean(r.AWB), code: cd, conf: tc != null ? hm(tc) : '', dest: title(clean(r.Destinatar)), loc: clean(r['Orasel Destinatar']) }); continue; }
+    const tconf = xTime(r['Ora conf']); const tm = tconf != null ? tconf : xTime(r['Ora schimbare status']);
+    const dconf = xDate(r['Data conf']) || xDate(r['Data schimbarii status']);
+    const addr = clean(r['Adresa Dest']) || '(fără adresă)';
+    const nextday = !!(dconf && dconf > day && /fanbox/i.test(addr));
+    if (tm == null || !dconf || (dconf !== day && !nextday)) continue;
+    const orasel = clean(r['Orasel Destinatar']) || null;
+    const d = { awb: clean(r.AWB).replace(/\.0$/, ''), status: clean(r.Status), conf: hm(tm), dest: title(clean(r.Destinatar)) || '(fără nume)', addr, loc: orasel ? (LOCFIX[orasel] || orasel) : cityName, orasel, other: null };
+    d.orasel_shown = !!orasel; d.key = orasel ? 'L:' + orasel : 'S:' + (streetKey(addr, city) || '?');
+    d._t0 = tm; const ne = nearEp(tm); d._gap = ne[0]; d._e = ne[1]; const p = pos(tm + 30);
+    d.gps = [+p[0].toFixed(6), +p[1].toFixed(6)]; d._epd = hav(p, [d._e.lat, d._e.lon]) * 1000;
+    d.delivered = d.status === 'Livrat' && tconf != null; d.fan = /fanbox/i.test(addr); d.nextday = nextday;
+    dels.push(d);
+  }
+  if (!dels.length) throw new Error('Nu am găsit în raportul PDA livrări din ziua exportului GPS (' + day + '). Verifică să fie aceeași zi în ambele fișiere.');
+  progress('Verific zonele');
+  // localități mari: pe străzi
+  dels.forEach(d => d.lkey = d.key);
+  const kc = {}; dels.forEach(d => kc[d.key] = (kc[d.key] || 0) + 1);
+  dels.forEach(d => { if (d.key.startsWith('L:') && kc[d.key] >= 12) { const sk = streetKey(d.addr, city); if (sk && sk !== 'principala' && sk !== 'pricipala' && !sk.startsWith(deacc(d.key.slice(2)).toLowerCase())) d.key = 'S:' + sk; } });
+  const GPS_END = pts[n - 1].t;
+  dels.forEach(d => d.nogps = d._t0 > GPS_END);
+  const allk = {}; dels.forEach(d => { if (!d.fan && !d.key.endsWith('?') && !d.nogps) (allk[d.key] = allk[d.key] || []).push(d); });
+  const okdel = dels.filter(d => d.delivered && !d.fan && !d.nogps);
+  const Rk = k => k.startsWith('L:') ? 4 : 0.8, FARk = k => k.startsWith('L:') ? 6 : 1.5;
+  const support = d => (allk[d.key] || []).filter(y => y !== d && hav(d.gps, y.gps) < Rk(d.key)).length;
+  const foreign = d => okdel.filter(y => y.key !== d.key && hav(d.gps, y.gps) < 0.6).length;
+  const moving = d => Math.abs(d._gap) > 90;
+  const topKey = (d, field) => { const c = {}; okdel.forEach(y => { if (y[field] !== d[field === 'lkey' ? 'key' : 'key'] && y[field] !== d.key && hav(d.gps, y.gps) < 0.6) c[y[field]] = (c[y[field]] || 0) + 1; }); let b = null; for (const k in c) if (!b || c[k] > b[1]) b = [k, c[k]]; return b; };
+  dels.forEach(d => d.zone = null);
+  for (const d of okdel) {
+    const k = d.key; if (k.endsWith('?')) continue;
+    const g = (allk[k] || []).filter(x => x.delivered), others = g.filter(x => x !== d);
+    if (others.length) {
+      const sup = others.filter(x => support(x) >= 1);
+      if (support(d) === 0 && sup.length) {
+        const x = sup.reduce((a, b) => hav(d.gps, b.gps) < hav(d.gps, a.gps) ? b : a);
+        if (hav(d.gps, x.gps) > FARk(k)) { let cl = sup.filter(y => hav(x.gps, y.gps) < Rk(k)); if (!cl.length) cl = [x]; const ts = cl.map(y => y.conf).sort(); d.zone = { km: hav(d.gps, x.gps), c: x.gps, when: [ts[0], ts[ts.length - 1]] }; }
+      } else if (support(d) === 0 && others.length === 1 && hav(d.gps, others[0].gps) > FARk(k)) {
+        const o = others[0], fk = topKey(d, 'key');
+        if ((foreign(d) >= 3 && foreign(o) < 3) || (foreign(d) < 3 && foreign(o) < 3 && moving(d) && !moving(o))) d.zone = { km: hav(d.gps, o.gps), c: null, pair: o.conf, among: fk && fk[1] >= 3 ? fk[0] : null };
+      }
+    }
+    if (!d.zone && others.length && k.startsWith('L:')) {
+      const fk = topKey(d, 'key'), ownNear = (allk[k] || []).some(y => y !== d && hav(d.gps, y.gps) < 1);
+      const sup = others.filter(x => support(x) >= 1 && hav(d.gps, x.gps) > 2.5);
+      if (fk && fk[1] >= 3 && !ownNear && sup.length) { const x = sup.reduce((a, b) => hav(d.gps, b.gps) < hav(d.gps, a.gps) ? b : a); const cl = sup.filter(y => hav(x.gps, y.gps) < Rk(k)); const ts = cl.map(y => y.conf).sort(); d.zone = { km: hav(d.gps, x.gps), c: x.gps, when: [ts[0], ts[ts.length - 1]], among: fk[0] }; }
+    }
+    if (!others.length && k.startsWith('L:')) { const fk = topKey(d, 'lkey'); if (fk && fk[1] >= 4) d.zone = { among: fk[0] }; }
+  }
+  // categorii
+  let fanPt = null, fanT = null;
+  dels.forEach(d => { if (d.fan && d.status.startsWith('Predat')) { fanPt = Math.abs(d._gap) <= 120 ? [d._e.lat, d._e.lon] : d.gps; fanT = d.conf; } });
+  const keyname = k => { if (k.startsWith('L:')) return LOCFIX[k.slice(2)] || k.slice(2); const t = title(k.slice(2)); return /^(Calea|Aleea|Alee)\b/.test(t) ? t : 'str. ' + t; };
+  for (const d of dels) {
+    const e = d._e, ep = (e.micro || hm(e.s) === hm(e.e)) ? hm(e.s) : hm(e.s) + '–' + hm(e.e); d.est = false;
+    if (d.nogps && !d.fan) { d.cat = 'nogps'; d.eff = d.conf; d.loc_pt = null; d.gps = null; d.note = `Confirmat la ${d.conf}, după ce se termină exportul GPS (${hm(GPS_END)}). Nu se poate verifica.`; }
+    else if (d.fan) {
+      d.cat = 'fanbox';
+      if (d.status.startsWith('Predat')) { d.loc_pt = fanPt; d.note = `Predat în FANbox la ${d.conf}.`; d.eff = d.conf; }
+      else if (fanPt) { d.loc_pt = fanPt; d.eff = fanT; d.note = `Ora din PDA (${d.conf}${d.nextday ? ', a doua zi' : ''}) este ridicarea de către client. Depus în FANbox, cel mai probabil la ${fanT}.`; }
+      else { d.loc_pt = null; d.eff = d.conf; d.note = 'Colet de FANbox; ora din PDA poate fi ridicarea de către client.'; }
+      if (d.nextday || d.nogps) d.gps = null;
+    } else if (!d.delivered) {
+      d.cat = 'retur'; d.eff = null; d.est = true; const stopped = Math.abs(d._gap) <= 90;
+      const same = dels.filter(x => x.delivered && x.key === d.key && !x.zone && !x.nogps && x !== d);
+      if (same.length) {
+        const x = same.reduce((a, b) => Math.abs(b._t0 - d._t0) < Math.abs(a._t0 - d._t0) ? b : a), near = hav(x.gps, d.gps) < Rk(d.key);
+        d.loc_pt = near ? d.gps : x.gps; d.late = !near;
+        d.note = near ? `Nelivrat. Statusul „${d.status}” a fost pus la ${d.conf}, când mașina era în aceeași zonă${stopped ? ' și oprită (' + ep + ')' : ', în mers'}.` : `Nelivrat. Statusul „${d.status}” a fost pus la ${d.conf}, când mașina era la ${distTxt(hav(x.gps, d.gps) * 1000)} de zona adresei. În ${keyname(d.key)} mașina a fost la ${x.conf}.`;
+      } else { d.loc_pt = d.gps; d.late = null; d.note = `Nelivrat. Statusul „${d.status}” a fost pus la ${d.conf}; mașina era ${stopped ? 'oprită (' + ep + ')' : 'în mers'}. Nu am altă livrare în aceeași zonă ca să verific locul.`; }
+    } else if (d.zone) {
+      const z = d.zone; d.cat = 'nu_bate'; d.eff = d.conf; d.est = true;
+      if (z.c) { d.loc_pt = [+z.c[0].toFixed(6), +z.c[1].toFixed(6)]; const w = z.when[0] === z.when[1] ? z.when[0] : z.when[0] + '–' + z.when[1]; d.note = `La ${d.conf} mașina era ${z.among ? 'în zona ' + keyname(z.among) + ', ' : ''}la ${distTxt(z.km * 1000)} de locul unde a livrat celelalte colete din ${keyname(d.key)} (acolo a fost la ${w}).`; }
+      else if (z.pair) { d.loc_pt = d.gps; d.note = `Confirmat la ${d.conf}${z.among ? ' în zona ' + keyname(z.among) : ''}, la ${distTxt(z.km * 1000)} de locul în care a fost confirmat celălalt colet din ${keyname(d.key)} (${z.pair}). Cel puțin unul dintre ele nu a fost confirmat la adresă.`; }
+      else { d.loc_pt = null; d.note = `La ${d.conf} mașina era în zona ${keyname(z.among)}, printre livrările de acolo, nu în ${keyname(d.key)}.`; }
+    } else if (Math.abs(d._gap) <= 90) { d.cat = 'bate'; d.eff = d.conf; d.loc_pt = [e.lat, e.lon]; d.note = e.micro ? `Mașina a oprit scurt aici la ${hm(e.s)}.` : ep.includes('–') ? `Mașina era oprită (${ep}).` : `Mașina a oprit aici la ${ep}.`; }
+    else { d.cat = 'in_mers'; d.eff = d.conf; d.loc_pt = d.gps; d.note = `Mașina era în mers la confirmare, cu circa ${spdAt(d._t0)} km/h; cea mai apropiată oprire: ${ep}, la ${distTxt(d._epd)}.`; }
+  }
+  const num = dels.filter(d => d.eff).sort((a, b) => a.eff < b.eff ? -1 : a.eff > b.eff ? 1 : a.conf < b.conf ? -1 : a.conf > b.conf ? 1 : a.awb < b.awb ? -1 : 1);
+  num.forEach((d, k) => d.nr = k + 1);
+  const rest = dels.filter(d => !d.eff).sort((a, b) => a.conf < b.conf ? -1 : 1);
+  const DL = num.concat(rest); const cnt = {}; DL.forEach(d => cnt[d.cat] = (cnt[d.cat] || 0) + 1);
+
+  // fereastra de lucru + depozit
+  const evs = DL.filter(d => (d.cat !== 'fanbox' || d.status.startsWith('Predat')) && d.cat !== 'nogps').map(d => d._t0);
+  if (!evs.length) throw new Error('Nu am nicio confirmare în intervalul exportului GPS.');
+  const firstEv = Math.min(...evs), lastEv = Math.max(...evs) + 59;
+  let DEPOT = opts.depot;
+  if (!DEPOT) { const pre = eps.filter(e => e.e <= firstEv && !e.micro).sort((a, b) => (b.e - b.s) - (a.e - a.s))[0]; DEPOT = pre && pre.e - pre.s >= 15 * 60 ? [pre.lat, pre.lon] : null; }
+  const inDep = p => DEPOT && hav(p, DEPOT) < 0.45;
+  let i0 = 0; for (let k = 0; k < n; k++) if (pts[k].t <= firstEv && inDep(P[k])) i0 = k;
+  let i1 = n - 1, returned = false; for (let k = 0; k < n; k++) if (pts[k].t > lastEv && inDep(P[k])) { i1 = k; returned = true; break; }
+  let depUsed = false; for (let k = 0; k < n; k++) if (pts[k].t <= firstEv && inDep(P[k])) { depUsed = true; break; }
+  if (!depUsed) { // fără depozit: de la ultima oprire lungă înainte de prima livrare
+    const pre = eps.filter(e => e.e <= firstEv).pop(); if (pre) { for (let k = 0; k < n; k++) if (pts[k].t <= pre.e) i0 = k; }
+  }
+  const T0 = pts[i0].t, T1 = pts[i1].t;
+  const km = (a, b) => { let s = 0; for (let k = 0; k < n - 1; k++) if (pts[k].t >= a && pts[k + 1].t <= b) s += hav(P[k], P[k + 1]); return s; };
+
+  progress('Calculez ruta optimă');
+  // graf din traseu
+  const nodes = [], adj = [];
+  const addE = (a, b, w) => { adj[a].push(b, w); adj[b].push(a, w); };
+  const addN = p => { nodes.push(p); adj.push([]); return nodes.length - 1; };
+  addN(P[0]);
+  for (let k = 1; k < n; k++) { const d = hav(P[k - 1], P[k]) * 1000, steps = Math.floor(d / 20); let prev = nodes.length - 1; for (let s = 1; s <= steps; s++) { const f = s / (steps + 1); const id = addN([P[k - 1][0] + f * (P[k][0] - P[k - 1][0]), P[k - 1][1] + f * (P[k][1] - P[k - 1][1])]); addE(prev, id, d / (steps + 1)); prev = id; } const id = addN(P[k]); addE(prev, id, d / (steps + 1)); }
+  const cell = 0.0003, grid = new Map(); nodes.forEach((p, k) => { const key = Math.floor(p[0] / cell) + ',' + Math.floor(p[1] / cell); if (!grid.has(key)) grid.set(key, []); grid.get(key).push(k); });
+  nodes.forEach((p, k) => { const cx = Math.floor(p[0] / cell), cy = Math.floor(p[1] / cell); for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { const L = grid.get((cx + dx) + ',' + (cy + dy)); if (!L) continue; for (const j of L) if (j > k + 2) { const d = hav(p, nodes[j]) * 1000; if (d < 25) addE(k, j, d); } } });
+  const nearest = p => { let b = 0, bd = 1e18; for (let k = 0; k < nodes.length; k++) { const a = (nodes[k][0] - p[0]) ** 2 + ((nodes[k][1] - p[1]) * 0.715) ** 2; if (a < bd) { bd = a; b = k; } } return b; };
+  function dijk(src) { const N = nodes.length, dist = new Float64Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1); dist[src] = 0; const hv = [0], hn = [src];
+    const push = (v, x) => { hv.push(v); hn.push(x); let c = hv.length - 1; while (c > 0) { const p = (c - 1) >> 1; if (hv[p] <= hv[c]) break; [hv[p], hv[c]] = [hv[c], hv[p]]; [hn[p], hn[c]] = [hn[c], hn[p]]; c = p; } };
+    const pop = () => { const v = hv[0], x = hn[0], lv = hv.pop(), lx = hn.pop(); if (hv.length) { hv[0] = lv; hn[0] = lx; let c = 0; for (;;) { const l = 2 * c + 1, r = l + 1; let m = c; if (l < hv.length && hv[l] < hv[m]) m = l; if (r < hv.length && hv[r] < hv[m]) m = r; if (m === c) break; [hv[m], hv[c]] = [hv[c], hv[m]]; [hn[m], hn[c]] = [hn[c], hn[m]]; c = m; } } return [v, x]; };
+    while (hv.length) { const [d, u] = pop(); if (d > dist[u]) continue; const A = adj[u]; for (let q = 0; q < A.length; q += 2) { const v = A[q], nd = d + A[q + 1]; if (nd < dist[v]) { dist[v] = nd; prev[v] = u; push(nd, v); } } }
+    return { dist, prev }; }
+  const stops = []; for (const d of DL) { if (!d.loc_pt) continue; const s = stops.find(s => hav(s.pt, d.loc_pt) * 1000 < 70); if (s) s.dels.push(d); else stops.push({ pt: d.loc_pt, dels: [d] }); }
+  const START = depUsed ? DEPOT : P[i0];
+  const S = [START].concat(stops.map(s => s.pt)), sn = S.map(nearest), DD = [], PV = [];
+  sn.forEach(a => { const r = dijk(a); DD.push(sn.map(b => isFinite(r.dist[b]) ? r.dist[b] : 1e9)); PV.push(r.prev); });
+  const m = S.length, tlen = t => { let s = 0; for (let k = 0; k < t.length - 1; k++) s += DD[t[k]][t[k + 1]]; return s; };
+  function opt(t) { t = t.slice(); let imp = true; while (imp) { imp = false;
+      for (let a = 1; a < t.length - 2; a++) for (let b = a + 1; b < t.length - 1; b++) if (DD[t[a - 1]][t[b]] + DD[t[a]][t[b + 1]] - DD[t[a - 1]][t[a]] - DD[t[b]][t[b + 1]] < -1e-6) { const seg = t.slice(a, b + 1).reverse(); t.splice(a, seg.length, ...seg); imp = true; }
+      for (const L of [1, 2, 3]) { for (let a = 1; a < t.length - L; a++) { const seg = t.slice(a, a + L), rest = t.slice(0, a).concat(t.slice(a + L)), base = tlen(t); let bv = base - 1e-6, bt = null;
+        const rem = DD[t[a - 1]][seg[0]] + DD[seg[L - 1]][t[a + L]] - DD[t[a - 1]][t[a + L]];
+        for (let k = 1; k < rest.length; k++) for (const sg of [seg, seg.slice().reverse()]) { let v = base - rem + DD[rest[k - 1]][sg[0]] + DD[sg[L - 1]][rest[k]] - DD[rest[k - 1]][rest[k]]; if (L > 1 && sg !== seg) { for (let x = 0; x < L - 1; x++) v += DD[sg[x]][sg[x + 1]] - DD[seg[x]][seg[x + 1]]; } if (v < bv) { bv = v; bt = rest.slice(0, k).concat(sg, rest.slice(k)); } }
+        if (bt) { t = bt; imp = true; } } } }
+    return t; }
+  const firstTime = s => s.dels.map(d => d.cat !== 'nu_bate' ? (d.eff || '99') : '99').sort()[0];
+  const R = rng(1); let best = null; const restarts = opts.restarts || 25;
+  for (let it = 0; it < restarts; it++) { let mid = []; for (let k = 1; k < m; k++) mid.push(k);
+    if (it === 0) mid.sort((a, b) => firstTime(stops[a - 1]) < firstTime(stops[b - 1]) ? -1 : 1); else for (let k = mid.length - 1; k > 0; k--) { const j = Math.floor(R() * (k + 1)); [mid[k], mid[j]] = [mid[j], mid[k]]; }
+    const t = opt([0].concat(mid, [0])), L = tlen(t); if (!best || L < best[0] - 1e-6) best = [L, t]; }
+  const seq = [0]; for (const d of num) { if (d.cat === 'nu_bate' || !d.loc_pt) continue; const k = stops.findIndex(s => s.dels.includes(d)) + 1; if (seq[seq.length - 1] !== k) seq.push(k); } seq.push(0);
+  const orderKm = tlen(seq) / 1000;
+  const path = (a, b) => { const prev = PV[a]; let u = sn[b]; const out = [u]; let guard = 0; while (u !== sn[a] && u >= 0 && guard++ < 1e6) { u = prev[u]; out.push(u); } return out.reverse().filter(x => x >= 0); };
+  const tt = best[1], geom = [], legs = [];
+  for (let k = 0; k < tt.length - 1; k++) { path(tt[k], tt[k + 1]).forEach(x => geom.push(nodes[x])); legs.push(DD[tt[k]][tt[k + 1]]); }
+  const order = []; let cum = 0;
+  for (let k = 1; k < tt.length - 1; k++) { cum += legs[k - 1]; const s = stops[tt[k] - 1]; order.push({ n: k, pt: s.pt.map(x => +x.toFixed(6)), km: +(cum / 1000).toFixed(1), dels: s.dels.map(d => d.awb) }); }
+  const g2 = geom.length ? [geom[0]] : []; for (const p of geom.slice(1)) if (hav(g2[g2.length - 1], p) * 1000 >= 15) g2.push(p); if (geom.length) g2.push(geom[geom.length - 1]);
+
+  progress('Calculez vitezele');
+  const LP = DL.filter(d => d.loc_pt && d.cat === 'bate').map(d => d.loc_pt);
+  const C0 = opts.cityCenter || [44.318, 23.80], CR = opts.cityRadius || [0.045, 0.075];
+  const useCity = hav(P[0], C0) < 40;
+  const inCity = p => useCity && ((p[0] - C0[0]) / CR[0]) ** 2 + ((p[1] - C0[1]) / CR[1]) ** 2 < 1;
+  const lim = p => inCity(p) || LP.some(q => hav(p, q) < 0.5) ? 50 : 90;
+  const trk = pts.map((p, k) => [+p.lat.toFixed(5), +p.lon.toFixed(5), hms(p.t), p.speed, lim(P[k])]);
+  const W = trk.filter((x, k) => pts[k].t >= T0 && pts[k].t <= T1); const bands = [0, 0, 0, 0];
+  for (let k = 1; k < W.length; k++) { const x = W[k - 1], y = W[k], ex = Math.max(x[3] - x[4], y[3] - y[4]); bands[ex <= 0 ? 0 : ex <= 10 ? 1 : ex <= 30 ? 2 : 3] += hav(x, y); }
+  const scans = evs.concat(picks.filter(p => p.t && p.sameday).map(p => +p.t.slice(0, 2) * 3600 + +p.t.slice(3, 5) * 60));
+  const uns = [];
+  for (const e of eps) { if (e.e <= T0 + 5 || e.s >= T1 - 5) continue; const du = e.e - e.s; if (du < 120 || inDep([e.lat, e.lon])) continue; if (scans.some(c => c + 59 >= e.s - 180 && c <= e.e + 180)) continue; uns.push({ s: hm(e.s), e: hm(e.e), min: Math.round(du / 60), pt: [e.lat, e.lon], note: '' }); }
+  let stoppedS = 0; eps.forEach(e => { if (e.e > T0 && e.s < T1) stoppedS += Math.min(e.e, T1) - Math.max(e.s, T0); }); const tot = T1 - T0;
+  const grp = {}; DL.forEach(d => { if ((d.cat === 'bate' || d.cat === 'in_mers') && d.orasel) (grp[d.loc] = grp[d.loc] || []).push(d.loc_pt); });
+  const labels = Object.keys(grp).map(k => ({ n: k, pt: [grp[k].reduce((a, p) => a + p[0], 0) / grp[k].length, grp[k].reduce((a, p) => a + p[1], 0) / grp[k].length] })); if (depUsed) labels.push({ n: 'Depozit', pt: DEPOT });
+  const firstDel = DL.filter(d => d.nr === 1).map(d => d._t0)[0];
+  const nm = clean(code.replace(/^[A-Z]{2,4}-\d+-/, '')).toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase());
+  const dd = day.split('-');
+  const meta = { name: opts.name || nm || code, car: opts.car || '', code, date: `${+dd[2]}.${dd[1]}.${dd[0]}`, t0: hms(T0), t1: hms(T1), returned, dep_used: depUsed,
+    loop: +km(T0, T1).toFixed(1), before: +km(pts[0].t, T0).toFixed(1), after: +km(T1, pts[n - 1].t).toFixed(1), total: +km(pts[0].t, pts[n - 1].t).toFixed(1), opt: +(best[0] / 1000).toFixed(1), order: +orderKm.toFixed(1),
+    cnt, n: DL.length, stopMin: Math.round(stoppedS / 60), moveMin: Math.round((tot - stoppedS) / 60), pre: firstDel != null ? +km(T0, firstDel).toFixed(1) : 0, first_leg: order.length ? order[0].km : 0,
+    bands: bands.map(v => +v.toFixed(1)), picks: picks.length, others: oth, gps_end: hms(pts[n - 1].t), gps_start: hms(pts[0].t), nstops: stops.length, day };
+  const epsOut = eps.map(e => ({ micro: !!e.micro, s: hms(e.s), e: hms(e.e), min: Math.round((e.e - e.s) / 60), pt: [e.lat, e.lon] }));
+  DL.forEach(d => { for (const k of Object.keys(d)) if (k[0] === '_' || ['zone', 'key', 'orasel', 'fan', 'delivered', 'nogps', 'lkey', 'nextday'].includes(k)) delete d[k]; });
+  const D = { dels: DL, order, geom: g2.map(p => [+p[0].toFixed(5), +p[1].toFixed(5)]), track: trk, uns, labels, meta, depot: START, picks };
+  findings(D, epsOut);
+  return D;
+}
+
+/* ---------- concluzii */
+function findings(D, eps) {
+  const M = D.meta, dels = D.dels, trk = D.track, C = { bate: 0, in_mers: 0, nu_bate: 0, fanbox: 0, retur: 0, nogps: 0 }; dels.forEach(d => C[d.cat]++);
+  const sec = s => +s.slice(0, 2) * 3600 + +s.slice(3, 5) * 60 + (s.length > 5 ? +s.slice(6, 8) : 0);
+  const t0 = M.t0.slice(0, 5), t1 = M.t1.slice(0, 5), addr = C.bate + C.in_mers + C.nu_bate, nliv = dels.filter(d => d.nr).length, neliv = dels.filter(d => d.cat === 'retur');
+  D.kpi = [[String(M.n), 'colete de livrat în raport', `${nliv} livrate, ${neliv.length} nelivrate`],
+    [`${C.bate} <small>din ${addr}</small>`, 'livrări confirmate cu mașina oprită', 'în minutul confirmării, în zona coletelor din aceeași localitate'],
+    [`${ro(M.loop, 0)} <small>km</small>`, 'traseul de lucru', M.returned ? `${t0} – ${t1}, de la depozit și înapoi` : `${t0} – ${t1}`],
+    [`${ro(M.opt, 0)} <small>km</small>`, 'ruta optimă', `cu ${ro(Math.max(0, M.loop - M.opt), 0)} km mai scurtă, aceleași ${M.nstops} opriri`]];
+  const F = [];
+  { const g = {}; dels.filter(d => d.cat === 'bate' && d.loc_pt && d.orasel_shown).forEach(d => (g[d.loc] = g[d.loc] || []).push(d.loc_pt));
+    const c = Object.values(g).map(v => [v.reduce((a, p) => a + p[0], 0) / v.length, v.reduce((a, p) => a + p[1], 0) / v.length]);
+    const close = c.filter(x => c.some(y => y !== x && hav(x, y) < 1)).length;
+    if (c.length >= 6 && close / c.length > 0.5) F.push(['nu_bate', 'Atenție', `${close} din ${c.length} localități din raport cad practic în același loc pe traseul mașinii. Se întâmplă de obicei când raportul PDA și exportul GPS nu sunt ale aceluiași curier sau ale aceleiași mașini; verifică fișierele înainte să tragi concluzii.`]); }
+  if (addr >= 5 && C.bate / addr < 0.4) F.push(['nu_bate', 'Atenție', `Doar ${C.bate} din ${addr} livrări se potrivesc cu opririle mașinii. Verifică întâi că raportul PDA și exportul GPS sunt ale aceluiași curier și din aceeași zi; dacă da, rezultatul de mai jos e real.`]);
+  F.push(['bate', 'Bate', `${C.bate} din ${addr} livrări au fost confirmate cu mașina oprită (sau oprită cu cel mult un minut și jumătate înainte ori după), într-un loc care se potrivește cu celelalte colete din aceeași localitate. Asta arată că a oprit atunci, nu dovedește singur că a fost la adresă; semnalele puternice sunt cele care nu bat, mai jos.`]);
+  const nb = dels.filter(d => d.cat === 'nu_bate');
+  if (nb.length) F.push(['nu_bate', 'Nu bate', (nb.length === 1 ? 'Un colet confirmat departe de zona adresei:<br>' : `${nb.length} colete confirmate departe de zona adresei:<br>`) + nb.map(d => `<b>${d.conf}</b> · ${esc(d.dest)}, ${esc(d.orasel_shown ? d.loc : d.addr)} (nr. ${d.nr}, AWB ${esc(d.awb)}). ${esc(d.note)}`).join('<br>')]);
+  const im = dels.filter(d => d.cat === 'in_mers');
+  if (im.length) F.push(['in_mers', 'Din mers', `${im.length} colete confirmate cu mașina în mișcare, fără nicio oprire în acel minut: ` + im.slice(0, 8).map(d => `${d.conf} ${esc(d.dest)} (${esc(d.loc)})`).join('; ') + (im.length > 8 ? '…' : '.')]);
+  const fb = dels.filter(d => d.cat === 'fanbox');
+  if (fb.length) F.push(['fanbox', 'FANbox', `${fb.length} colete de FANbox. La ${fb.filter(d => !d.status.startsWith('Predat')).length} dintre ele ora din PDA este ora la care clientul a ridicat coletul, nu ora curierului.`]);
+  if (neliv.length) { const st = {}; neliv.forEach(d => st[d.status] = (st[d.status] || 0) + 1); const late = neliv.filter(d => d.late), onsite = neliv.filter(d => d.late === false), unk = neliv.filter(d => d.late == null);
+    let t = `${neliv.length} colete nelivrate (${Object.keys(st).map(k => st[k] + ' ' + k).join(', ')}). `;
+    if (onsite.length) t += `La ${onsite.length} statusul a fost pus pe loc, cu mașina în zona adresei. `;
+    if (late.length) t += `La ${late.length} statusul a fost pus mai târziu, departe de adresă: ` + late.map(d => `${d.conf} ${esc(d.dest)}, ${esc(d.loc)}`).join('; ') + '. ';
+    if (unk.length) t += `La ${unk.length} nu am altă livrare în aceeași zonă ca să verific unde era mașina față de adresă.`;
+    F.push(['retur', 'Nelivrate', t]); }
+  if (M.others.length) { const oc = [...new Set(M.others.map(o => o.code))]; F.push(['info', 'Alt cod', `${M.others.length} colete din raport sunt pe alt cod de curier (${esc(oc.join(', '))}): ` + M.others.map(o => `${o.conf} ${esc(o.dest)}, ${esc(o.loc)}`).join('; ') + '. Nu le-am pus în potrivire.']); }
+  if (M.picks) F.push(['info', 'Ridicări', `Raportul mai conține ${M.picks} AWB-uri pe care curierul le-a ridicat sau le-a creat ca retur în acea zi. Nu sunt livrări, deci nu intră în potrivire.`]);
+  const ng = dels.filter(d => d.cat === 'nogps');
+  if (ng.length) F.push(['retur', 'Fără GPS', `${ng.length} colet(e) confirmate după sfârșitul exportului GPS (${M.gps_end.slice(0, 5)}): ` + ng.map(d => `${d.conf} ${esc(d.dest)}`).join('; ') + '. Nu se pot verifica.']);
+  let t = `De la plecare (${t0}) până la ${M.returned ? 'întoarcere' : 'sfârșitul traseului de lucru'} (${t1}) au trecut ${dur(M.moveMin + M.stopMin)}: ${dur(M.moveMin)} de mers și ${dur(M.stopMin)} de stat pe loc.`;
+  if (D.uns.length) { const lu = D.uns.reduce((a, b) => b.min > a.min ? b : a); t += ` Opririle de peste 2 minute fără nicio scanare adună ${D.uns.reduce((a, u) => a + u.min, 0)} de minute; cea mai lungă e de ${lu.min} minute (${lu.s} – ${lu.e}).`; } else t += ' Nu există opriri de peste 2 minute fără scanare.';
+  F.push(['info', 'Timp', t]);
+  const ev = dels.filter(d => d.cat !== 'nogps' && !(d.cat === 'fanbox' && !d.status.startsWith('Predat'))).map(d => [sec(d.conf), d]).sort((a, b) => a[0] - b[0]);
+  const seg = (a, b) => { let k = 0; for (let q = 0; q < trk.length - 1; q++) if (sec(trk[q][2]) >= a && sec(trk[q + 1][2]) <= b) k += hav(trk[q], trk[q + 1]); let st = 0; eps.forEach(e => st += Math.max(0, Math.min(sec(e.e), b) - Math.max(sec(e.s), a))); return [k, st / 60]; };
+  const gaps = []; for (let q = 1; q < ev.length; q++) { const [ta, x] = ev[q - 1], [tb, y] = ev[q]; if (tb - ta > 540) { const [k, st] = seg(ta + 60, tb); gaps.push({ a: x.conf, b: y.conf, min: Math.floor((tb - ta) / 60), km: k, st: Math.round(st) }); } }
+  D.gaps = gaps;
+  if (gaps.length) { const top = gaps.slice().sort((a, b) => b.min - a.min).slice(0, 4); F.push(['info', 'Pauze', `${gaps.length} intervale de peste 9 minute între două scanări consecutive, în total ${dur(gaps.reduce((a, g) => a + g.min, 0))}. Cele mai lungi: ` + top.map(g => `${g.a} → ${g.b} (${g.min} min: ${ro(g.km)} km, oprit ${g.st} min)`).join('; ') + '.']); }
+  else F.push(['info', 'Pauze', 'Niciun interval mai lung de 9 minute între două scanări consecutive.']);
+  const W = trk.filter(p => sec(p[2]) >= sec(M.t0) && sec(p[2]) <= sec(M.t1)); const peaks = [];
+  for (const p of W.slice().sort((a, b) => (a[4] - a[3]) - (b[4] - b[3]))) { if (p[3] - p[4] <= 0) break; if (peaks.every(q => Math.abs(sec(p[2]) - sec(q[2])) > 600)) peaks.push(p); if (peaks.length === 4) break; }
+  const b = M.bands;
+  F.push([b[3] > 5 ? 'nu_bate' : 'info', 'Viteză', `Față de limita estimată (50 km/h în localitate, 90 în afară), ${ro(b[1] + b[2] + b[3], 0)} din ${ro(M.loop, 0)} km sunt peste limită, din care ${ro(b[3], 0)} km cu peste 30 km/h în plus.` + (peaks.length ? ' Vârfuri: ' + peaks.map(p => `${p[3]} km/h la ${p[2].slice(0, 5)} (limită ${p[4]})`).join('; ') + '.' : '') + ' Limita reală a fiecărui drum nu e în datele GPS, deci zona de localitate e aproximată.']);
+  F.push(['info', 'Rută', `Traseul real are ${ro(M.loop)} km. Aceleași opriri, în ordinea în care le-a făcut el dar pe drumul cel mai scurt, înseamnă ${ro(M.order)} km; în ordinea optimă, ${ro(M.opt)} km. Din reordonare se câștigă deci ${ro(Math.max(0, M.order - M.opt))} km, restul diferenței vine din ocoluri și drumuri fără livrare. Până la prima livrare a mers ${ro(M.pre)} km, față de ${ro(M.first_leg)} km pe drumul direct.`]);
+  t = `În afara traseului de lucru mașina a mai făcut ${ro(M.before)} km înainte de plecare și ${ro(M.after)} km după. Total în exportul GPS (${M.gps_start.slice(0, 5)} – ${M.gps_end.slice(0, 5)}): ${ro(M.total, 0)} km.`;
+  if (M.dep_used && hav(trk[0], D.depot) > 1) t += ` La începutul exportului mașina era parcată la ${ro(hav(trk[0], D.depot))} km de depozit, nu în depozit.`;
+  if (!M.dep_used) t += ' Nu am găsit depozitul (o oprire lungă înainte de prima livrare), așa că traseul de lucru începe de la ultima oprire dinaintea primei livrări.';
+  F.push(['info', 'În afara traseului', t]);
+  D.find = F;
+}
+root.PDAGPS = { parseKML, parseXLSX, analyze, hav };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script type="application/json" id="tplsrc">"\u003ctitle>__TITLE__\u003c/title>\n\u003clink rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap\">\n\u003cstyle>\n/* Layout: foaie de lucru pe o coloană — cifrele zilei, concluziile, harta mare, apoi tabelele pe file. Temă deschisă, aleasă intenționat. */\n:root{\n  --bg:#f3f5f4; --card:#ffffff; --ink:#18211f; --muted:#5f6b68; --line:#dde3e1; --soft:#eaefed;\n  --accent:#0b5d57; --track:#1d5fd1; --after:#8a9390; --opt:#a3246f;\n  --ok:#1c8a4d; --warn:#c27400; --bad:#c9341f; --box:#5a49c9; --ret:#4d5660;\n  --ok-bg:#e3f4ea; --warn-bg:#fdf0d9; --bad-bg:#fde6e1; --box-bg:#eae7fb; --ret-bg:#e9ecee;\n  --mapbg:#e9eeeb;\n  --sans:\"IBM Plex Sans\",system-ui,-apple-system,\"Segoe UI\",sans-serif;\n  --mono:\"IBM Plex Mono\",ui-monospace,Consolas,monospace;\n  color-scheme:light;\n}\n*{box-sizing:border-box}\nbody{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans)}\n.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:24px 56px;display:flex;flex-direction:column;gap:22px}\nh1{font-size:26px;line-height:1.2;margin:0;font-weight:700;text-wrap:balance}\nh2{font-size:17px;margin:0;font-weight:600}\n.sub{color:var(--muted);margin-top:4px}\n.sub b{color:var(--ink);font-weight:600}\n.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}\n.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}\n.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}\n.kpi .v{font-size:28px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}\n.kpi .v small{font-size:15px;font-weight:500;color:var(--muted)}\n.kpi .l{font-weight:600;margin-top:6px}\n.kpi .d{color:var(--muted);font-size:13px;margin-top:2px}\n.find{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px}\n.find ul{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}\n.find li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start}\n.find li>div{min-width:0}\n.tag{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap;line-height:1.5}\n.t-bate{background:var(--ok-bg);color:var(--ok)} .t-in_mers{background:var(--warn-bg);color:var(--warn)} .t-nu_bate{background:var(--bad-bg);color:var(--bad)}\n.t-fanbox{background:var(--box-bg);color:var(--box)} .t-retur,.t-nogps{background:var(--ret-bg);color:var(--ret)} .t-info{background:var(--soft);color:var(--accent)}\n.mapcard{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}\n.bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}\n.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}\n.seg button{font:600 14px var(--sans);padding:8px 14px;border:0;background:var(--card);color:var(--muted);cursor:pointer}\n.seg button[aria-pressed=\"true\"]{background:var(--accent);color:#fff}\n.seg button+button{border-left:1px solid var(--line)}\nbutton:focus-visible,input:focus-visible,tr:focus-visible{outline:2px solid var(--track);outline-offset:2px}\n.time{display:flex;align-items:center;gap:10px;flex:1 1 280px;min-width:0}\n.time input{flex:1;min-width:0;accent-color:var(--accent)}\n.time output{font:500 14px var(--mono);white-space:nowrap}\n#map{position:relative;height:780px;background:var(--mapbg);overflow:hidden;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}\n#map.drag{cursor:grabbing}\n#map canvas{position:absolute;inset:0;width:100%;height:100%}\n#ov{position:absolute;inset:0;pointer-events:none}\n.mk{position:absolute;transform:translate(-50%,-50%);border-radius:50%;display:grid;place-items:center;color:#fff;font:600 12px var(--mono);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35);pointer-events:auto;cursor:pointer;padding:0}\n.mk.dim{opacity:.22}\n.mk.sel{outline:3px solid var(--ink);outline-offset:1px;z-index:5}\n.mk.c-bate{background:var(--ok)} .mk.c-in_mers{background:var(--warn)} .mk.c-nu_bate{background:var(--bad)} .mk.c-fanbox{background:var(--box)}\n.mk.c-retur,.mk.c-nogps{background:var(--card);color:var(--ret);border-color:var(--ret)}\n.mk.c-opt{background:var(--opt)}\n.mk.sq{border-radius:4px;background:var(--card);color:var(--ink);border:2px solid var(--ink);font-size:11px}\n.mk.car{background:var(--ink);width:16px;height:16px;border:3px solid #ffd23f;z-index:6;pointer-events:none}\n.mk.dep{border-radius:4px;background:var(--ink);font-size:11px}\n.lbl{position:absolute;transform:translate(14px,-50%);font:600 12px var(--sans);color:var(--muted);white-space:nowrap;text-shadow:0 0 3px var(--mapbg),0 0 3px var(--mapbg),0 0 3px var(--mapbg)}\n.zoom{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:6px;z-index:8}\n.zoom button{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 18px var(--sans);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.15)}\n.zoom button.fit{font-size:11px}\n.attr{position:absolute;right:0;bottom:0;background:rgba(255,255,255,.85);color:#333;font-size:11px;padding:1px 6px;z-index:8}\n#info{position:absolute;left:10px;top:10px;z-index:11;width:min(360px,calc(100% - 20px));max-height:min(380px,calc(100% - 20px));overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.18);padding:12px 14px;font-size:13.5px;cursor:auto;user-select:text;-webkit-user-select:text}\n#lg{position:absolute;left:10px;top:10px;z-index:8;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.14);padding:8px 12px;font-size:13px;width:max-content;max-width:min(340px,calc(100% - 70px));cursor:auto}\n#lg summary{font-weight:600;cursor:pointer}\n#lg table{width:auto;font-size:13px;margin-top:6px}\n#lg td{padding:2px 10px 2px 0;border:0;vertical-align:middle;white-space:nowrap}\n#lg td.k{text-align:right;font-family:var(--mono);color:var(--muted);padding-right:0}\n#lg .sw{display:inline-block;width:26px;height:5px;border-radius:3px;vertical-align:middle}\n#lg p{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.35}\n#tip{position:absolute;z-index:10;pointer-events:none;background:var(--ink);color:#fff;border-radius:8px;padding:7px 10px;font-size:13px;line-height:1.35;white-space:nowrap;box-shadow:0 3px 12px rgba(0,0,0,.3)}\n#tip b{font-size:16px}\n#tip .ov{color:#ffb4a8;font-weight:600}\n#tip .okc{color:#9fe3b9;font-weight:600}\n#tip .wrn{color:#ffd27a;font-weight:600}\n#tip .box{color:#c9c1ff;font-weight:600}\n#tip .ret{color:#d5dbe0;font-weight:600}\n#hdot{position:absolute;width:14px;height:14px;border-radius:50%;border:3px solid #fff;background:var(--ink);transform:translate(-50%,-50%);pointer-events:none;z-index:7;box-shadow:0 0 0 2px var(--ink)}\n#info h3{margin:0 24px 6px 0;font-size:14.5px}\n#info .x{position:absolute;top:6px;right:6px;border:0;background:none;font-size:20px;line-height:1;color:var(--muted);cursor:pointer;padding:4px 8px}\n#info .it{padding:7px 0;border-top:1px solid var(--line)}\n#info .it:first-of-type{border-top:0}\n#info a{color:var(--track)}\n.legend{display:flex;flex-wrap:wrap;gap:8px 16px;padding:10px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}\n.legend span{display:inline-flex;align-items:center;gap:6px}\n.dot{width:12px;height:12px;border-radius:50%;display:inline-block}\n.ln{width:22px;height:0;border-top:3px solid;display:inline-block}\n.tabs{display:flex;flex-wrap:wrap;gap:6px}\n.tabs button{font:600 14px var(--sans);padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--muted);cursor:pointer}\n.tabs button[aria-selected=\"true\"]{background:var(--ink);color:#fff;border-color:var(--ink)}\n.chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}\n.chips button{font:600 13px var(--sans);padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--muted);cursor:pointer}\n.chips button[aria-pressed=\"true\"]{border-color:var(--ink);color:var(--ink);background:var(--soft)}\n.tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}\ntable{border-collapse:collapse;width:100%;font-size:14px}\nth{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;font-weight:600}\ntd{padding:9px 12px;border-bottom:1px solid var(--soft);vertical-align:top}\ntr:last-child td{border-bottom:0}\ntbody tr.go{cursor:pointer}\ntbody tr.go:hover{background:var(--soft)}\ntd.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}\ntd .a{color:var(--muted);font-size:13px}\ntd .awb{font:12px var(--mono);color:var(--muted)}\n.note{color:var(--muted);font-size:13px;max-width:70ch}\n.cmp{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0}\n@media (max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}.cmp{grid-template-columns:1fr}#map{height:70vh;min-height:420px}h1{font-size:22px}}\n@media (max-width:460px){.kpis{grid-template-columns:1fr}}\n\u003c/style>\n\n\u003cdiv class=\"wrap\">\n  \u003cheader>\n    \u003ch1 id=\"h1\">\u003c/h1>\n    \u003cdiv class=\"sub\" id=\"sub\">\u003c/div>\n  \u003c/header>\n\n  \u003csection class=\"kpis\" id=\"kpis\">\u003c/section>\n\n  \u003csection class=\"find\">\n    \u003ch2>Ce reiese\u003c/h2>\n    \u003cul id=\"find\">\u003c/ul>\n  \u003c/section>\n\n  \u003csection class=\"mapcard\">\n    \u003cdiv class=\"bar\">\n      \u003cdiv class=\"seg\" role=\"group\" aria-label=\"Ce se vede pe hartă\">\n        \u003cbutton id=\"m-real\" aria-pressed=\"true\">Ce a făcut\u003c/button>\n        \u003cbutton id=\"m-opt\" aria-pressed=\"false\">Ruta optimă\u003c/button>\n      \u003c/div>\n      \u003cdiv class=\"seg\" role=\"group\" aria-label=\"Culoarea traseului\" id=\"colbox\">\n        \u003cbutton id=\"c-lim\" aria-pressed=\"true\">Față de limită\u003c/button>\n        \u003cbutton id=\"c-spd\" aria-pressed=\"false\">Viteză\u003c/button>\n        \u003cbutton id=\"c-hr\" aria-pressed=\"false\">Oră\u003c/button>\n      \u003c/div>\n      \u003cdiv class=\"time\" id=\"timebox\">\n        \u003clabel for=\"tm\" class=\"note\">Ora\u003c/label>\n        \u003cinput type=\"range\" id=\"tm\" min=\"0\" max=\"86400\" step=\"60\" value=\"86400\">\n        \u003coutput id=\"tmo\" for=\"tm\">\u003c/output>\n      \u003c/div>\n    \u003c/div>\n    \u003cdiv id=\"map\">\n      \u003ccanvas id=\"cv\">\u003c/canvas>\n      \u003cdiv id=\"ov\">\u003c/div>\n      \u003cdiv class=\"zoom\">\u003cbutton id=\"zi\" aria-label=\"Mărește\">+\u003c/button>\u003cbutton id=\"zo\" aria-label=\"Micșorează\">−\u003c/button>\u003cbutton id=\"zf\" class=\"fit\" aria-label=\"Tot traseul\">Tot\u003c/button>\u003cbutton id=\"zs\" class=\"fit\" aria-label=\"Schimbă harta\" hidden>Satelit\u003c/button>\u003c/div>\n      \u003cdiv class=\"attr\" id=\"attr\" hidden>Hartă: Esri, © OpenStreetMap\u003c/div>\n      \u003cdetails id=\"lg\" open>\u003c/details>\n      \u003cdiv id=\"tip\" hidden>\u003c/div>\u003cdiv id=\"hdot\" hidden>\u003c/div>\n      \u003cdiv id=\"info\" hidden>\u003c/div>\n    \u003c/div>\n    \u003cdiv class=\"legend\" id=\"legend\">\u003c/div>\n    \u003cdiv class=\"legend\" id=\"nomap\" hidden style=\"color:var(--ink)\">Pagina din Claude nu poate încărca străzile, de aceea fondul e gri. Pentru harta cu străzi, descarcă fișierul HTML din conversație și deschide-l în Chrome sau Edge.\u003c/div>\n  \u003c/section>\n\n  \u003csection>\n    \u003cdiv class=\"tabs\" role=\"tablist\">\n      \u003cbutton role=\"tab\" id=\"tb-match\" aria-selected=\"true\">Potrivire PDA – GPS\u003c/button>\n      \u003cbutton role=\"tab\" id=\"tb-uns\" aria-selected=\"false\">Opriri fără scanare\u003c/button>\n      \u003cbutton role=\"tab\" id=\"tb-opt\" aria-selected=\"false\">Ruta optimă\u003c/button>\n    \u003c/div>\n    \u003cdiv id=\"p-match\">\u003cdiv class=\"chips\" id=\"chips\">\u003c/div>\u003cdiv class=\"tw\">\u003ctable>\u003cthead>\u003ctr>\u003cth>Nr.\u003c/th>\u003cth>Ora conf.\u003c/th>\u003cth>Destinatar și adresă\u003c/th>\u003cth>Localitate\u003c/th>\u003cth>Rezultat\u003c/th>\u003cth>Ce arată GPS-ul\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody id=\"rows\">\u003c/tbody>\u003c/table>\u003c/div>\u003c/div>\n    \u003cdiv id=\"p-uns\" hidden>\u003c/div>\n    \u003cdiv id=\"p-opt\" hidden>\u003c/div>\n  \u003c/section>\n\u003c/div>\n\n\u003cscript>\nconst D=\"__DATA__\", TILES=\"__TILES__\";\nconst $=id=>document.getElementById(id);\nconst esc=s=>String(s).replace(/[&\u003c>\"]/g,c=>({'&':'&amp;','\u003c':'&lt;','>':'&gt;','\"':'&quot;'}[c]));\nconst CAT={bate:'Bate',in_mers:'Confirmat din mers',nu_bate:'Nu bate',fanbox:'FANbox',retur:'Nelivrat',nogps:'Fără GPS'};\nconst tagTxt=d=>d.cat==='retur'?d.status:CAT[d.cat];\nconst PRI=['nu_bate','retur','in_mers','fanbox','nogps','bate'];\nconst sec=s=>(+s.slice(0,2))*3600+(+s.slice(3,5))*60+(s.length>5?+s.slice(6,8):0);\nconst hm=t=>String(Math.floor(t/3600)).padStart(2,'0')+':'+String(Math.floor(t%3600/60)).padStart(2,'0');\nconst ro=(x,d=1)=>x.toFixed(d).replace('.',',');\nconst byAwb={};D.dels.forEach(d=>byAwb[d.awb]=d);\nconst effT=d=>d.eff?sec(d.eff):null;\nconst M=D.meta,C=M.cnt;PRI.forEach(c=>{C[c]=C[c]||0});\nconst T_START=sec(M.t0),T_END=sec(M.t1),H0=Math.floor(T_START/3600),HN=Math.floor(T_END/3600)-H0+1;\nconst stops=D.order.map(o=>{const ds=o.dels.map(a=>byAwb[a]);const cat=PRI.find(p=>ds.some(d=>d.cat===p));\n  const ts=ds.filter(d=>d.cat!=='nu_bate').map(effT).filter(t=>t!=null);return {...o,ds,cat,t:ts.length?Math.min(...ts):null}});\nD.dels.forEach(d=>{d.stop=stops.find(s=>s.ds.includes(d))});\nconst TRK=D.track.map(p=>({la:p[0],lo:p[1],t:sec(p[2]),sp:p[3],lim:p[4]}));\nconst LIM=[[0,'#1c9a52','în limită'],[10,'#e2b100','până la +10'],[30,'#ea7317','+10 până la +30'],[999,'#c9241f','peste +30']];\nconst SPD=[[30,'#2b7bd6','sub 30'],[50,'#1c9a52','30 – 50'],[70,'#e2b100','50 – 70'],[90,'#ea7317','70 – 90'],[999,'#c9241f','peste 90']];\nconst HRS=Array.from({length:HN},(_,i)=>`hsl(${Math.round(265-265*i/Math.max(1,HN-1))} 70% 42%)`);\nconst bIdx=(a,b)=>colorBy==='lim'?LIM.findIndex(x=>Math.max(a.sp-a.lim,b.sp-b.lim)\u003c=x[0]):colorBy==='spd'?SPD.findIndex(x=>Math.max(a.sp,b.sp)\u003cx[0]):Math.max(0,Math.min(HN-1,Math.floor(b.t/3600)-H0));\nconst segCol=(a,b)=>(colorBy==='lim'?LIM:colorBy==='spd'?SPD:HRS.map(c=>[0,c]))[bIdx(a,b)][1];\nconst havKm=(a,b)=>{const r=Math.PI/180;return 6371*Math.hypot((b.lo-a.lo)*r*Math.cos((a.la+b.la)/2*r),(b.la-a.la)*r)};\nfunction bandKm(n){const k=new Array(n).fill(0),w=TRK.filter(p=>p.t>=T_START&&p.t\u003c=T_END);for(let i=1;i\u003cw.length;i++)k[bIdx(w[i-1],w[i])]+=havKm(w[i-1],w[i]);return k}\nlet colorBy='lim';\n\n/* ---------- KPI + concluzii */\ndocument.getElementById('h1').textContent=M.name+', '+M.date;\n$('sub').innerHTML=`Raport PDA (${M.n} colete de livrat, ${esc(M.code)}) pus peste GPS-ul mașinii \u003cb>${esc(M.car)}\u003c/b>. Fiecare colet e legat de locul în care era mașina la ora confirmării.`;\n$('kpis').innerHTML=D.kpi.map(k=>`\u003cdiv class=\"kpi\">\u003cdiv class=\"v\">${k[0]}\u003c/div>\u003cdiv class=\"l\">${k[1]}\u003c/div>\u003cdiv class=\"d\">${k[2]}\u003c/div>\u003c/div>`).join('');\nconst NB=D.dels.filter(d=>d.cat==='nu_bate'&&d.gps);\n$('find').innerHTML=D.find.map(f=>`\u003cli>\u003cspan class=\"tag t-${f[0]}\">${f[1]}\u003c/span>\u003cdiv>${f[2]}\u003c/div>\u003c/li>`).join('');\n\n/* ---------- hartă (Web Mercator, desenată în canvas) */\nconst map=$('map'),cv=$('cv'),ov=$('ov'),ctx=cv.getContext('2d');\nconst css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();\nconst px=(la,lo,z)=>{const s=256*Math.pow(2,z),sn=Math.sin(la*Math.PI/180);return [(lo+180)/360*s,(0.5-Math.log((1+sn)/(1-sn))/(4*Math.PI))*s]};\nconst unpx=(x,y,z)=>{const s=256*Math.pow(2,z);return [Math.atan(Math.sinh(Math.PI*(1-2*y/s)))*180/Math.PI,x/s*360-180]};\nlet V={la:44.46,lo:23.84,z:11},mode='real',curT=86400,sel=null,W=0,H=0;\nconst toScr=(la,lo)=>{const c=px(V.la,V.lo,V.z),p=px(la,lo,V.z);return [p[0]-c[0]+W/2,p[1]-c[1]+H/2]};\nfunction fit(pts){let a=90,b=-90,c=180,d=-180;pts.forEach(p=>{a=Math.min(a,p[0]);b=Math.max(b,p[0]);c=Math.min(c,p[1]);d=Math.max(d,p[1])});\n  let z=17;for(;z>5;z-=0.25){const p1=px(b,c,z),p2=px(a,d,z);if(p2[0]-p1[0]\u003cW-70&&p2[1]-p1[1]\u003cH-70)break}\n  const m1=px(b,c,z),m2=px(a,d,z),ctr=unpx((m1[0]+m2[0])/2,(m1[1]+m2[1])/2,z);V={la:ctr[0],lo:ctr[1],z};draw()}\nconst workPts=()=>TRK.filter(p=>p.t>=T_START&&p.t\u003c=T_END).map(p=>[p.la,p.lo]);\nconst tiles={};\nlet base='World_Street_Map';\nfunction tile(z,x,y){const k=base+'/'+z+'/'+x+'/'+y;if(!tiles[k]){const im=new Image();im.onload=()=>{im.ok=1;draw()};im.onerror=()=>{if(!im.fb){im.fb=1;im.src='https://tile.openstreetmap.org/'+z+'/'+x+'/'+y+'.png'}};im.src='https://server.arcgisonline.com/ArcGIS/rest/services/'+base+'/MapServer/tile/'+z+'/'+y+'/'+x;tiles[k]=im}return tiles[k]}\nfunction posAt(t){if(t\u003c=TRK[0].t)return TRK[0];for(let i=0;i\u003cTRK.length-1;i++){const a=TRK[i],b=TRK[i+1];if(t\u003c=b.t){const f=(t-a.t)/Math.max(1,b.t-a.t);return {la:a.la+f*(b.la-a.la),lo:a.lo+f*(b.lo-a.lo)}}}return TRK[TRK.length-1]}\nfunction line(pts,color,w,dash,alpha){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=w;ctx.lineJoin='round';ctx.lineCap='round';ctx.globalAlpha=alpha||1;ctx.setLineDash(dash||[]);ctx.beginPath();\n  pts.forEach((p,i)=>{const s=toScr(p[0],p[1]);i?ctx.lineTo(s[0],s[1]):ctx.moveTo(s[0],s[1])});ctx.stroke();ctx.restore()}\nlet els=[];\nfunction nrLabel(s){const n=s.ds.map(d=>d.nr).filter(Boolean).sort((a,b)=>a-b);if(!n.length)return '×';if(n.length===1)return n[0];return n[n.length-1]-n[0]===n.length-1?n[0]+'–'+n[n.length-1]:n[0]+'+'}\nfunction mk(cls,la,lo,txt,size,title,on){const e=document.createElement(on?'button':'div');e.className='mk '+cls;e.style.width=e.style.height=size+'px';e.textContent=txt||'';if(String(txt||'').length>2){e.style.width='auto';e.style.padding='0 6px';e.style.borderRadius='12px'}if(title)e.title=title;\n  if(on){e.addEventListener('click',ev=>{ev.stopPropagation();on()});e.addEventListener('pointerdown',ev=>ev.stopPropagation())}\n  ov.appendChild(e);els.push({e,la,lo});return e}\nfunction build(){ov.innerHTML='';els=[];\n  if(!TILES)D.labels.forEach(l=>{const e=document.createElement('div');e.className='lbl';e.textContent=l.n;ov.appendChild(e);els.push({e,la:l.pt[0],lo:l.pt[1]})});\n  mk('dep',D.depot[0],D.depot[1],'D',22,'Depozit: plecare '+M.t0.slice(0,5)+(M.returned?', întoarcere '+M.t1.slice(0,5):''));\n  if(mode==='real'){\n    D.uns.forEach((u,i)=>{mk('sq',u.pt[0],u.pt[1],u.min+\"'\",24,'',()=>showUns(i))._uns=u});\n    stops.forEach(s=>{const dim=s.t!=null&&s.t>curT;const e=mk('c-'+s.cat+(dim?' dim':'')+(sel===s?' sel':''),s.pt[0],s.pt[1],nrLabel(s),24,'',()=>showStop(s));s.el=e;e._stop=s});\n    NB.forEach(nb=>{if(sec(nb.conf)>curT)return;if(nb.loc_pt&&havKm({la:nb.gps[0],lo:nb.gps[1]},{la:nb.loc_pt[0],lo:nb.loc_pt[1]})\u003c.15)return;mk('c-nu_bate',nb.gps[0],nb.gps[1],'!',22,'',()=>{showStop(nb.stop||{ds:[nb],pt:nb.gps});infoAt=nb.gps;placeInfo()})._stop={ds:[nb]}});\n    const p=posAt(curT);mk('car',p.la,p.lo,'',16,'Mașina la '+hm(curT));\n  }else{\n    stops.forEach(s=>{const e=mk('c-opt'+(sel===s?' sel':''),s.pt[0],s.pt[1],s.n,24,'',()=>showStop(s));s.el=e;e._stop=s});\n  }\n  draw()}\nfunction draw(){const r=map.getBoundingClientRect(),dpr=window.devicePixelRatio||1;W=r.width;H=r.height;\n  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}\n  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);\n  if(TILES){const tz=Math.max(0,Math.min(19,Math.round(V.z))),sc=Math.pow(2,V.z-tz),c=px(V.la,V.lo,tz),n=Math.pow(2,tz);\n    const x0=Math.floor((c[0]-W/2/sc)/256),x1=Math.floor((c[0]+W/2/sc)/256),y0=Math.floor((c[1]-H/2/sc)/256),y1=Math.floor((c[1]+H/2/sc)/256);\n    for(let x=x0;x\u003c=x1;x++)for(let y=y0;y\u003c=y1;y++){if(x\u003c0||y\u003c0||x>=n||y>=n)continue;const im=tile(tz,x,y);if(im.ok)ctx.drawImage(im,(x*256-c[0])*sc+W/2,(y*256-c[1])*sc+H/2,256*sc+.5,256*sc+.5)}}\n  const work=TRK.filter(p=>p.t>=T_START&&p.t\u003c=T_END),aft=TRK.filter(p=>p.t>=T_END),bef=TRK.filter(p=>p.t\u003c=T_START);\n  if(mode==='real'){\n    line(aft.map(p=>[p.la,p.lo]),css('--after'),2.5,[6,6]);line(bef.map(p=>[p.la,p.lo]),css('--after'),2.5,[6,6]);\n    line(work.map(p=>[p.la,p.lo]),'#ffffff',6,null,.9);\n    let run=[],rc=null,ra=1;const flush=()=>{if(run.length>1)line(run,rc,4,null,ra);};\n    for(let i=1;i\u003cwork.length;i++){const a=work[i-1],b=work[i],c=segCol(a,b),al=b.t>curT?.22:1;\n      if(c!==rc||al!==ra){flush();run=[[a.la,a.lo]];rc=c;ra=al}run.push([b.la,b.lo])}flush();\n    NB.forEach(nb=>{if(nb.loc_pt&&sec(nb.conf)\u003c=curT)line([nb.gps,nb.loc_pt],css('--bad'),1.5,[5,5],.8)});\n  }else{\n    line(work.map(p=>[p.la,p.lo]),css('--track'),2,null,.3);\n    line(D.geom,css('--opt'),3.5);\n  }\n  els.forEach(o=>{const s=toScr(o.la,o.lo);o.e.style.left=s[0]+'px';o.e.style.top=s[1]+'px'});placeInfo()}\n/* pan / zoom */\nconst ptr=new Map();let pinch=0;\nfunction zoomAt(x,y,dz){const c=px(V.la,V.lo,V.z),wx=c[0]+x-W/2,wy=c[1]+y-H/2,z=Math.max(7,Math.min(18,V.z+dz)),k=Math.pow(2,z-V.z),n=unpx(wx*k-(x-W/2),wy*k-(y-H/2),z);V={la:n[0],lo:n[1],z};draw()}\nmap.addEventListener('pointerdown',e=>{if(e.target.closest('#info,.zoom,#lg'))return;hideTip();map.setPointerCapture(e.pointerId);ptr.set(e.pointerId,[e.clientX,e.clientY]);map.classList.add('drag');pinch=0});\nmap.addEventListener('pointermove',e=>{if(!ptr.has(e.pointerId))return;const o=ptr.get(e.pointerId);\n  if(ptr.size===1){const c=px(V.la,V.lo,V.z),n=unpx(c[0]-(e.clientX-o[0]),c[1]-(e.clientY-o[1]),V.z);V.la=n[0];V.lo=n[1];ptr.set(e.pointerId,[e.clientX,e.clientY]);draw()}\n  else if(ptr.size===2){ptr.set(e.pointerId,[e.clientX,e.clientY]);const a=[...ptr.values()],d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]),r=map.getBoundingClientRect();\n    if(pinch)zoomAt((a[0][0]+a[1][0])/2-r.left,(a[0][1]+a[1][1])/2-r.top,Math.log2(d/pinch));pinch=d}});\nconst up=e=>{ptr.delete(e.pointerId);pinch=0;if(!ptr.size)map.classList.remove('drag')};\nmap.addEventListener('pointerup',up);map.addEventListener('pointercancel',up);\nmap.addEventListener('wheel',e=>{if(e.target.closest('#info'))return;e.preventDefault();const r=map.getBoundingClientRect();zoomAt(e.clientX-r.left,e.clientY-r.top,e.deltaY\u003c0?.5:-.5)},{passive:false});\nconst tip=$('tip'),hdot=$('hdot');\nfunction hideTip(){tip.hidden=true;hdot.hidden=true}\nfunction hoverAt(x,y){if(mode!=='real'){hideTip();return}const c=[];let a=toScr(TRK[0].la,TRK[0].lo);\n  for(let i=1;i\u003cTRK.length;i++){const b=toScr(TRK[i].la,TRK[i].lo),dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy;let t=l?((x-a[0])*dx+(y-a[1])*dy)/l:0;t=Math.max(0,Math.min(1,t));\n    const d=Math.hypot(x-(a[0]+t*dx),y-(a[1]+t*dy));if(d\u003c=13){const p0=TRK[i-1],p1=TRK[i];if(p1.t-p0.t\u003c120||havKm(p0,p1)>.05)c.push({d,px:a[0]+t*dx,py:a[1]+t*dy,p:t\u003c.5?p0:p1,sp:Math.round(p0.sp+(p1.sp-p0.sp)*t),tm:Math.round(p0.t+(p1.t-p0.t)*t)})}a=b}\n  if(!c.length){hideTip();return}\n  c.sort((u,v)=>u.tm-v.tm);const pass=[];c.forEach(k=>{const l=pass[pass.length-1];if(l&&k.tm-l.tm\u003c300){if(k.d\u003cl.d)pass[pass.length-1]=k}else pass.push(k)});\n  const show=pass.slice(-4),near=show.reduce((u,v)=>v.d\u003cu.d?v:u);\n  tip.innerHTML=(show.length>1?`\u003cdiv style=\"opacity:.8;margin-bottom:3px\">A trecut pe aici de ${show.length} ori:\u003c/div>`:'')+show.map(k=>{const ex=k.sp-k.p.lim;return `\u003cdiv>\u003cb>${k.sp} km/h\u003c/b> · ora ${hm(k.tm)} · ${ex>0?`\u003cspan class=\"ov\">cu ${ex} peste limita de ${k.p.lim}\u003c/span>`:`\u003cspan class=\"okc\">în limita de ${k.p.lim}\u003c/span>`}\u003c/div>`}).join('')+`\u003cdiv style=\"opacity:.8;margin-top:3px\">Limită estimată: ${near.p.lim===50?'în localitate':'în afara localității'}\u003c/div>`;\n  tip.hidden=false;hdot.hidden=false;hdot.style.left=near.px+'px';hdot.style.top=near.py+'px';\n  placeTip(x,y)}\nfunction placeTip(x,y){const tw=tip.offsetWidth,th=tip.offsetHeight;tip.style.left=Math.max(6,Math.min(W-tw-6,x+16))+'px';tip.style.top=Math.max(6,y+th+24>H?y-th-12:y+18)+'px'}\nconst GPSV={bate:['okc','OK cu GPS'],in_mers:['wrn','confirmat din mers'],nu_bate:['ov','NU bate cu GPS'],fanbox:['box','FANbox'],retur:['ret','nelivrat'],nogps:['ret','fără GPS']};\nfunction stopTip(s,x,y){hdot.hidden=true;const ds=s.ds.slice().sort((a,b)=>(a.nr||99)-(b.nr||99)),sh=ds.slice(0,9);\n  tip.innerHTML=sh.map(d=>`\u003cdiv>\u003cspan class=\"mono\" style=\"opacity:.8\">${d.nr?d.nr+'.':'×'} ${d.conf}\u003c/span> \u003cb style=\"font-size:13.5px\">${esc(d.dest)}\u003c/b> · \u003cspan class=\"${GPSV[d.cat][0]}\">${d.cat==='retur'?esc(d.status.toLowerCase())+', nelivrat':GPSV[d.cat][1]}\u003c/span>\u003c/div>`).join('')+(ds.length>sh.length?`\u003cdiv style=\"opacity:.8\">și încă ${ds.length-sh.length}\u003c/div>`:'')+`\u003cdiv style=\"opacity:.8;margin-top:3px\">Clic pentru adresă și detalii\u003c/div>`;\n  tip.hidden=false;placeTip(x,y)}\nfunction unsTip(u,x,y){hdot.hidden=true;tip.innerHTML=`\u003cdiv>\u003cb style=\"font-size:13.5px\">Oprire fără scanare\u003c/b>\u003c/div>\u003cdiv>${u.s} – ${u.e} · ${u.min} min\u003c/div>`;tip.hidden=false;placeTip(x,y)}\nmap.addEventListener('pointermove',e=>{if(ptr.size||e.target.closest('#info,#lg,.zoom')){hideTip();return}const r=map.getBoundingClientRect(),mkE=e.target.closest('.mk');\n  if(mkE&&mkE._stop){stopTip(mkE._stop,e.clientX-r.left,e.clientY-r.top);return}if(mkE&&mkE._uns){unsTip(mkE._uns,e.clientX-r.left,e.clientY-r.top);return}hoverAt(e.clientX-r.left,e.clientY-r.top)});\nmap.addEventListener('pointerleave',hideTip);\nmap.addEventListener('click',e=>{if(e.target.closest('#info,#lg,.zoom,.mk'))return;const r=map.getBoundingClientRect();hoverAt(e.clientX-r.left,e.clientY-r.top)});\n$('zi').onclick=()=>zoomAt(W/2,H/2,1);$('zo').onclick=()=>zoomAt(W/2,H/2,-1);$('zf').onclick=()=>fit(workPts());\nwindow.addEventListener('resize',draw);\n\n/* ---------- panou de detalii */\nconst gm=p=>`\u003ca href=\"https://www.google.com/maps?q=${p[0]},${p[1]}\" target=\"_blank\" rel=\"noopener\">Vezi locul în Google Maps\u003c/a>`;\nlet infoAt=null;\nfunction placeInfo(){const el=$('info');if(el.hidden||!infoAt)return;const p=toScr(infoAt[0],infoAt[1]),w=el.offsetWidth,h=el.offsetHeight;\n  let x=p[0]+22;if(x+w>W-8)x=p[0]-22-w;if(x\u003c8)x=Math.max(8,Math.min(W-w-8,p[0]-w/2));\n  let y=p[1]-28;if(x\u003cp[0]&&x+w>p[0])y=p[1]+22;y=Math.max(8,Math.min(H-h-8,y));el.style.left=x+'px';el.style.top=y+'px'}\nfunction closeInfo(){$('info').hidden=true;sel=null;infoAt=null;build()}\nfunction info(html){$('info').innerHTML='\u003cbutton class=\"x\" aria-label=\"Închide\">×\u003c/button>'+html;$('info').hidden=false;$('info').scrollTop=0;$('info').querySelector('.x').onclick=closeInfo;hideTip();placeInfo()}\nfunction showStop(s,focus){if(!s)return;sel=s;infoAt=s.pt;if(focus){V.la=s.pt[0];V.lo=s.pt[1];V.z=Math.max(V.z,15)}build();\n  const head=mode==='opt'?`Oprirea ${s.n} din ${stops.length} · km ${ro(s.km)}`:`${s.ds.length} ${s.ds.length>1?'colete':'colet'} în acest loc`;\n  info(`\u003ch3>${head}\u003c/h3>`+s.ds.map(d=>`\u003cdiv class=\"it\">\u003cb class=\"mono\">${d.nr?'Nr. '+d.nr:'Nelivrat'}\u003c/b> · \u003cspan class=\"mono\">${d.conf}\u003c/span> \u003cspan class=\"tag t-${d.cat}\">${esc(tagTxt(d))}\u003c/span>\u003cbr>\u003cb>${esc(d.dest)}\u003c/b>\u003cbr>${esc(d.addr)}, ${esc(d.loc)}\u003cdiv class=\"note\">${esc(d.note)}${d.est?' Poziție aproximată.':''}\u003c/div>\u003cdiv class=\"awb\">AWB ${d.awb}\u003c/div>\u003c/div>`).join('')+`\u003cdiv class=\"it\">${gm(s.pt)}\u003c/div>`)}\nfunction showUns(i,focus){const u=D.uns[i];sel=null;infoAt=u.pt;if(focus){V.la=u.pt[0];V.lo=u.pt[1];V.z=Math.max(V.z,15);if(mode!=='real')setMode('real')}build();\n  info(`\u003ch3>Oprire fără scanare · ${u.min} min\u003c/h3>\u003cdiv class=\"it\">\u003cspan class=\"mono\">${u.s} – ${u.e}\u003c/span>\u003cdiv class=\"note\">${esc(u.note||'Nicio confirmare în PDA în acest interval.')}\u003c/div>\u003c/div>\u003cdiv class=\"it\">${gm(u.pt)}\u003c/div>`)}\n\n/* ---------- mod + oră */\nfunction setMode(m){mode=m;$('m-real').setAttribute('aria-pressed',m==='real');$('m-opt').setAttribute('aria-pressed',m==='opt');$('timebox').hidden=m!=='real';$('colbox').hidden=m!=='real';$('info').hidden=true;sel=null;legend();build()}\nconst setCol=c=>{colorBy=c;['lim','spd','hr'].forEach(k=>$('c-'+k).setAttribute('aria-pressed',c===k));legend();draw()};$('c-lim').onclick=()=>setCol('lim');$('c-spd').onclick=()=>setCol('spd');$('c-hr').onclick=()=>setCol('hr');\n$('m-real').onclick=()=>setMode('real');$('m-opt').onclick=()=>setMode('opt');\nfunction setT(){curT=+$('tm').value;const n=D.dels.filter(d=>effT(d)!=null&&effT(d)\u003c=curT).length;$('tmo').textContent=curT>=+$('tm').max?'toată ziua':hm(curT)+' · '+n+' colete';build()}\n$('tm').addEventListener('input',setT);\nfunction mapLegend(){const L=$('lg');if(mode!=='real'){L.hidden=true;return}L.hidden=false;\n  const T={lim:'Cum a mers față de limită',spd:'Cu ce viteză a mers',hr:'La ce oră a trecut'}[colorBy];\n  const rows=colorBy==='lim'?[['Verde','în limita de viteză'],['Galben','cu până la 10 km/h peste'],['Portocaliu','cu 10 – 30 km/h peste'],['Roșu','cu peste 30 km/h peste']].map((r,i)=>[LIM[i][1],r[0]+': '+r[1]]):\n    colorBy==='spd'?SPD.map(x=>[x[1],x[2]+' km/h']):HRS.map((c,i)=>[c,'între '+(H0+i)+':00 și '+(H0+i+1)+':00']);\n  const km=bandKm(rows.length);\n  L.innerHTML=`\u003csummary>${T}\u003c/summary>\u003ctable>${rows.map((r,i)=>`\u003ctr>\u003ctd>\u003ci class=\"sw\" style=\"background:${r[0]}\">\u003c/i>\u003c/td>\u003ctd>${r[1]}\u003c/td>\u003ctd class=\"k\">${ro(km[i],0)} km\u003c/td>\u003c/tr>`).join('')}\u003ctr>\u003ctd>\u003ci class=\"sw\" style=\"background:var(--after)\">\u003c/i>\u003c/td>\u003ctd>în afara traseului de lucru\u003c/td>\u003ctd class=\"k\">${ro(M.before+M.after,0)} km\u003c/td>\u003c/tr>\u003c/table>\u003cp>${colorBy==='lim'?'Limită estimată: 50 km/h în localitate, 90 în afară. ':''}Ține mouse-ul pe traseu ca să vezi viteza și ora, iar pe o livrare ca să vezi destinatarul și dacă bate cu GPS-ul.\u003c/p>`}\nfunction legend(){mapLegend();$('legend').innerHTML=mode==='real'?\n `\u003cspan>\u003ci class=\"dot\" style=\"background:var(--ok)\">\u003c/i>Bate\u003c/span>\u003cspan>\u003ci class=\"dot\" style=\"background:var(--warn)\">\u003c/i>Confirmat din mers\u003c/span>\u003cspan>\u003ci class=\"dot\" style=\"background:var(--bad)\">\u003c/i>Nu bate\u003c/span>\u003cspan>\u003ci class=\"dot\" style=\"background:var(--box)\">\u003c/i>FANbox\u003c/span>\u003cspan>\u003ci class=\"dot\" style=\"background:var(--card);border:2px solid var(--ret)\">\u003c/i>Nelivrat\u003c/span>\u003cspan>\u003ci class=\"dot\" style=\"border-radius:3px;background:var(--card);border:2px solid var(--ink)\">\u003c/i>Oprire fără scanare (minute)\u003c/span>\u003cspan>\u003ci class=\"ln\" style=\"border-color:var(--after);border-top-style:dashed\">\u003c/i>Înainte și după traseul de lucru\u003c/span>\u003cspan>Numărul din cerc: a câta livrare a fost, după ora confirmării. „3–5” înseamnă livrările 3, 4 și 5 în același loc; „×” este colet nelivrat; „!” arată unde era mașina la o confirmare care nu bate.\u003c/span>`:\n `\u003cspan>\u003ci class=\"dot\" style=\"background:var(--opt)\">\u003c/i>Ordinea optimă a opririlor\u003c/span>\u003cspan>\u003ci class=\"ln\" style=\"border-color:var(--opt)\">\u003c/i>Ruta optimă, ${ro(M.opt)} km\u003c/span>\u003cspan>\u003ci class=\"ln\" style=\"border-color:var(--track);opacity:.4\">\u003c/i>Traseul real, ${ro(M.loop)} km\u003c/span>`}\n\n/* ---------- tabele */\nlet flt='all';\nfunction chips(){const o=[['all','Toate',D.dels.length]].concat(PRI.filter(c=>C[c]).map(c=>[c,CAT[c],C[c]]));\n  $('chips').innerHTML=o.map(c=>`\u003cbutton data-c=\"${c[0]}\" aria-pressed=\"${flt===c[0]}\">${c[1]} · ${c[2]}\u003c/button>`).join('');\n  $('chips').querySelectorAll('button').forEach(b=>b.onclick=()=>{flt=b.dataset.c;chips();rows()})}\nfunction goMap(){$('map').scrollIntoView({behavior:'smooth',block:'center'})}\nfunction rows(){const ds=D.dels.filter(d=>flt==='all'||d.cat===flt);\n  $('rows').innerHTML=ds.map(d=>`\u003ctr class=\"go\" tabindex=\"0\" data-a=\"${d.awb}\">\u003ctd class=\"n\">\u003cb>${d.nr||'–'}\u003c/b>\u003c/td>\u003ctd class=\"n\">${d.conf}\u003c/td>\u003ctd>\u003cb>${esc(d.dest)}\u003c/b>\u003cdiv class=\"a\">${esc(d.addr)}\u003c/div>\u003cdiv class=\"awb\">${d.awb}\u003c/div>\u003c/td>\u003ctd>${esc(d.loc)}\u003c/td>\u003ctd>\u003cspan class=\"tag t-${d.cat}\">${esc(tagTxt(d))}\u003c/span>\u003c/td>\u003ctd>\u003cdiv class=\"note\">${esc(d.note)}\u003c/div>\u003c/td>\u003c/tr>`).join('');\n  $('rows').querySelectorAll('tr').forEach(r=>{const f=()=>{const d=byAwb[r.dataset.a];if(mode!=='real')setMode('real');const st=d.stop||(d.gps?{ds:[d],pt:d.gps}:null);if(!st)return;showStop(st,true);goMap()};r.onclick=f;r.onkeydown=e=>{if(e.key==='Enter')f()}})}\n$('p-uns').innerHTML=`\u003cp class=\"note\" style=\"margin:12px 0\">Opriri de cel puțin 2 minute între plecare și întoarcere, în care PDA-ul nu are nicio confirmare. Apasă pe un rând ca să vezi locul pe hartă.\u003c/p>\u003cdiv class=\"tw\">\u003ctable>\u003cthead>\u003ctr>\u003cth>Interval\u003c/th>\u003cth>Durată\u003c/th>\u003cth>Observație\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody>`+\n D.uns.map((u,i)=>`\u003ctr class=\"go\" tabindex=\"0\" data-i=\"${i}\">\u003ctd class=\"n\">${u.s} – ${u.e}\u003c/td>\u003ctd class=\"n\">${u.min} min\u003c/td>\u003ctd>${esc(u.note||'Nicio confirmare în PDA în acest interval.')}\u003c/td>\u003c/tr>`).join('')+`\u003c/tbody>\u003c/table>\u003c/div>`;\n$('p-uns').querySelectorAll('tr.go').forEach(r=>{const f=()=>{showUns(+r.dataset.i,true);goMap()};r.onclick=f;r.onkeydown=e=>{if(e.key==='Enter')f()}});\n$('p-opt').innerHTML=`\u003cdiv class=\"cmp\">\u003cdiv class=\"kpi\">\u003cdiv class=\"v\">${ro(M.loop)} \u003csmall>km\u003c/small>\u003c/div>\u003cdiv class=\"l\">Traseul real\u003c/div>\u003cdiv class=\"d\">din GPS, ${M.t0.slice(0,5)} – ${M.t1.slice(0,5)}\u003c/div>\u003c/div>\u003cdiv class=\"kpi\">\u003cdiv class=\"v\">${ro(M.opt)} \u003csmall>km\u003c/small>\u003c/div>\u003cdiv class=\"l\">Ruta optimă\u003c/div>\u003cdiv class=\"d\">plecare și întoarcere în același punct\u003c/div>\u003c/div>\u003cdiv class=\"kpi\">\u003cdiv class=\"v\">${ro(M.loop-M.opt)} \u003csmall>km\u003c/small>\u003c/div>\u003cdiv class=\"l\">Diferență\u003c/div>\u003cdiv class=\"d\">circa ${Math.round((M.loop-M.opt)/Math.max(20,M.loop/(M.moveMin/60))*60)} de minute de mers\u003c/div>\u003c/div>\u003c/div>\n \u003cp class=\"note\" style=\"margin:0 0 12px\">Ruta e calculată pe drumurile pe care mașina a mers efectiv în acea zi, deci distanțele sunt reale, nu în linie dreaptă. Dacă există scurtături pe care el nu le-a folosit, ruta se poate scurta mai mult. Opririle sunt puse acolo unde era mașina la confirmare, nu la adresa exactă. Coloana „Real” arată ora la care a ajuns el în acel loc.\u003c/p>\n \u003cdiv class=\"tw\">\u003ctable>\u003cthead>\u003ctr>\u003cth>Nr.\u003c/th>\u003cth>Km\u003c/th>\u003cth>Opriri și colete\u003c/th>\u003cth>Localitate\u003c/th>\u003cth>Real\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody>`+\n stops.map(s=>`\u003ctr class=\"go\" tabindex=\"0\" data-n=\"${s.n}\">\u003ctd class=\"n\">${s.n}\u003c/td>\u003ctd class=\"n\">${ro(s.km)}\u003c/td>\u003ctd>${[...new Set(s.ds.map(d=>d.addr))].map(esc).join('\u003cbr>')}\u003cdiv class=\"awb\">${s.ds.length} ${s.ds.length>1?'colete':'colet'}\u003c/div>\u003c/td>\u003ctd>${esc([...new Set(s.ds.map(d=>d.loc))].join(', '))}\u003c/td>\u003ctd class=\"n\">${s.t!=null?hm(s.t):'–'}\u003c/td>\u003c/tr>`).join('')+\n `\u003ctr>\u003ctd class=\"n\">–\u003c/td>\u003ctd class=\"n\">${ro(M.opt)}\u003c/td>\u003ctd>Întoarcere la depozit\u003c/td>\u003ctd>Craiova\u003c/td>\u003ctd class=\"n\">${M.returned?M.t1.slice(0,5):'–'}\u003c/td>\u003c/tr>\u003c/tbody>\u003c/table>\u003c/div>`;\n$('p-opt').querySelectorAll('tr.go').forEach(r=>{const f=()=>{if(mode!=='opt')setMode('opt');showStop(stops[+r.dataset.n-1],true);goMap()};r.onclick=f;r.onkeydown=e=>{if(e.key==='Enter')f()}});\n['match','uns','opt'].forEach(t=>$('tb-'+t).onclick=()=>['match','uns','opt'].forEach(u=>{$('p-'+u).hidden=u!==t;$('tb-'+u).setAttribute('aria-selected',u===t)}));\n\nif(TILES){$('attr').hidden=false;$('zs').hidden=false;$('zs').onclick=()=>{base=base==='World_Imagery'?'World_Street_Map':'World_Imagery';$('zs').textContent=base==='World_Imagery'?'Străzi':'Satelit';draw()}}else $('nomap').hidden=false;\n$('tm').min=Math.floor(T_START/600)*600;$('tm').max=Math.ceil(T_END/600)*600;$('tm').value=$('tm').max;curT=+$('tm').max;\nchips();rows();legend();$('tmo').textContent='toată ziua';\nW=map.clientWidth;H=map.clientHeight;build();fit(workPts());\n\u003c/script>\n"</script>
+<script>
+function RENDER(D, TILES){
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const CAT={bate:'Bate',in_mers:'Confirmat din mers',nu_bate:'Nu bate',fanbox:'FANbox',retur:'Nelivrat',nogps:'Fără GPS'};
+const tagTxt=d=>d.cat==='retur'?d.status:CAT[d.cat];
+const PRI=['nu_bate','retur','in_mers','fanbox','nogps','bate'];
+const sec=s=>(+s.slice(0,2))*3600+(+s.slice(3,5))*60+(s.length>5?+s.slice(6,8):0);
+const hm=t=>String(Math.floor(t/3600)).padStart(2,'0')+':'+String(Math.floor(t%3600/60)).padStart(2,'0');
+const ro=(x,d=1)=>x.toFixed(d).replace('.',',');
+const byAwb={};D.dels.forEach(d=>byAwb[d.awb]=d);
+const effT=d=>d.eff?sec(d.eff):null;
+const M=D.meta,C=M.cnt;PRI.forEach(c=>{C[c]=C[c]||0});
+const T_START=sec(M.t0),T_END=sec(M.t1),H0=Math.floor(T_START/3600),HN=Math.floor(T_END/3600)-H0+1;
+const stops=D.order.map(o=>{const ds=o.dels.map(a=>byAwb[a]);const cat=PRI.find(p=>ds.some(d=>d.cat===p));
+  const ts=ds.filter(d=>d.cat!=='nu_bate').map(effT).filter(t=>t!=null);return {...o,ds,cat,t:ts.length?Math.min(...ts):null}});
+D.dels.forEach(d=>{d.stop=stops.find(s=>s.ds.includes(d))});
+const TRK=D.track.map(p=>({la:p[0],lo:p[1],t:sec(p[2]),sp:p[3],lim:p[4]}));
+const LIM=[[0,'#1c9a52','în limită'],[10,'#e2b100','până la +10'],[30,'#ea7317','+10 până la +30'],[999,'#c9241f','peste +30']];
+const SPD=[[30,'#2b7bd6','sub 30'],[50,'#1c9a52','30 – 50'],[70,'#e2b100','50 – 70'],[90,'#ea7317','70 – 90'],[999,'#c9241f','peste 90']];
+const HRS=Array.from({length:HN},(_,i)=>`hsl(${Math.round(265-265*i/Math.max(1,HN-1))} 70% 42%)`);
+const bIdx=(a,b)=>colorBy==='lim'?LIM.findIndex(x=>Math.max(a.sp-a.lim,b.sp-b.lim)<=x[0]):colorBy==='spd'?SPD.findIndex(x=>Math.max(a.sp,b.sp)<x[0]):Math.max(0,Math.min(HN-1,Math.floor(b.t/3600)-H0));
+const segCol=(a,b)=>(colorBy==='lim'?LIM:colorBy==='spd'?SPD:HRS.map(c=>[0,c]))[bIdx(a,b)][1];
+const havKm=(a,b)=>{const r=Math.PI/180;return 6371*Math.hypot((b.lo-a.lo)*r*Math.cos((a.la+b.la)/2*r),(b.la-a.la)*r)};
+function bandKm(n){const k=new Array(n).fill(0),w=TRK.filter(p=>p.t>=T_START&&p.t<=T_END);for(let i=1;i<w.length;i++)k[bIdx(w[i-1],w[i])]+=havKm(w[i-1],w[i]);return k}
+let colorBy='lim';
+
+/* ---------- KPI + concluzii */
+document.getElementById('h1').textContent=M.name+', '+M.date;
+$('sub').innerHTML=`Raport PDA (${M.n} colete de livrat, ${esc(M.code)}) pus peste GPS-ul mașinii <b>${esc(M.car)}</b>. Fiecare colet e legat de locul în care era mașina la ora confirmării.`;
+$('kpis').innerHTML=D.kpi.map(k=>`<div class="kpi"><div class="v">${k[0]}</div><div class="l">${k[1]}</div><div class="d">${k[2]}</div></div>`).join('');
+const NB=D.dels.filter(d=>d.cat==='nu_bate'&&d.gps);
+$('find').innerHTML=D.find.map(f=>`<li><span class="tag t-${f[0]}">${f[1]}</span><div>${f[2]}</div></li>`).join('');
+
+/* ---------- hartă (Web Mercator, desenată în canvas) */
+const map=$('map'),cv=$('cv'),ov=$('ov'),ctx=cv.getContext('2d');
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const px=(la,lo,z)=>{const s=256*Math.pow(2,z),sn=Math.sin(la*Math.PI/180);return [(lo+180)/360*s,(0.5-Math.log((1+sn)/(1-sn))/(4*Math.PI))*s]};
+const unpx=(x,y,z)=>{const s=256*Math.pow(2,z);return [Math.atan(Math.sinh(Math.PI*(1-2*y/s)))*180/Math.PI,x/s*360-180]};
+let V={la:44.46,lo:23.84,z:11},mode='real',curT=86400,sel=null,W=0,H=0;
+const toScr=(la,lo)=>{const c=px(V.la,V.lo,V.z),p=px(la,lo,V.z);return [p[0]-c[0]+W/2,p[1]-c[1]+H/2]};
+function fit(pts){let a=90,b=-90,c=180,d=-180;pts.forEach(p=>{a=Math.min(a,p[0]);b=Math.max(b,p[0]);c=Math.min(c,p[1]);d=Math.max(d,p[1])});
+  let z=17;for(;z>5;z-=0.25){const p1=px(b,c,z),p2=px(a,d,z);if(p2[0]-p1[0]<W-70&&p2[1]-p1[1]<H-70)break}
+  const m1=px(b,c,z),m2=px(a,d,z),ctr=unpx((m1[0]+m2[0])/2,(m1[1]+m2[1])/2,z);V={la:ctr[0],lo:ctr[1],z};draw()}
+const workPts=()=>TRK.filter(p=>p.t>=T_START&&p.t<=T_END).map(p=>[p.la,p.lo]);
+const tiles={};
+let base='World_Street_Map';
+function tile(z,x,y){const k=base+'/'+z+'/'+x+'/'+y;if(!tiles[k]){const im=new Image();im.onload=()=>{im.ok=1;draw()};im.onerror=()=>{if(!im.fb){im.fb=1;im.src='https://tile.openstreetmap.org/'+z+'/'+x+'/'+y+'.png'}};im.src='https://server.arcgisonline.com/ArcGIS/rest/services/'+base+'/MapServer/tile/'+z+'/'+y+'/'+x;tiles[k]=im}return tiles[k]}
+function posAt(t){if(t<=TRK[0].t)return TRK[0];for(let i=0;i<TRK.length-1;i++){const a=TRK[i],b=TRK[i+1];if(t<=b.t){const f=(t-a.t)/Math.max(1,b.t-a.t);return {la:a.la+f*(b.la-a.la),lo:a.lo+f*(b.lo-a.lo)}}}return TRK[TRK.length-1]}
+function line(pts,color,w,dash,alpha){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=w;ctx.lineJoin='round';ctx.lineCap='round';ctx.globalAlpha=alpha||1;ctx.setLineDash(dash||[]);ctx.beginPath();
+  pts.forEach((p,i)=>{const s=toScr(p[0],p[1]);i?ctx.lineTo(s[0],s[1]):ctx.moveTo(s[0],s[1])});ctx.stroke();ctx.restore()}
+let els=[];
+function nrLabel(s){const n=s.ds.map(d=>d.nr).filter(Boolean).sort((a,b)=>a-b);if(!n.length)return '×';if(n.length===1)return n[0];return n[n.length-1]-n[0]===n.length-1?n[0]+'–'+n[n.length-1]:n[0]+'+'}
+function mk(cls,la,lo,txt,size,title,on){const e=document.createElement(on?'button':'div');e.className='mk '+cls;e.style.width=e.style.height=size+'px';e.textContent=txt||'';if(String(txt||'').length>2){e.style.width='auto';e.style.padding='0 6px';e.style.borderRadius='12px'}if(title)e.title=title;
+  if(on){e.addEventListener('click',ev=>{ev.stopPropagation();on()});e.addEventListener('pointerdown',ev=>ev.stopPropagation())}
+  ov.appendChild(e);els.push({e,la,lo});return e}
+function build(){ov.innerHTML='';els=[];
+  if(!TILES)D.labels.forEach(l=>{const e=document.createElement('div');e.className='lbl';e.textContent=l.n;ov.appendChild(e);els.push({e,la:l.pt[0],lo:l.pt[1]})});
+  mk('dep',D.depot[0],D.depot[1],'D',22,'Depozit: plecare '+M.t0.slice(0,5)+(M.returned?', întoarcere '+M.t1.slice(0,5):''));
+  if(mode==='real'){
+    D.uns.forEach((u,i)=>{mk('sq',u.pt[0],u.pt[1],u.min+"'",24,'',()=>showUns(i))._uns=u});
+    stops.forEach(s=>{const dim=s.t!=null&&s.t>curT;const e=mk('c-'+s.cat+(dim?' dim':'')+(sel===s?' sel':''),s.pt[0],s.pt[1],nrLabel(s),24,'',()=>showStop(s));s.el=e;e._stop=s});
+    NB.forEach(nb=>{if(sec(nb.conf)>curT)return;if(nb.loc_pt&&havKm({la:nb.gps[0],lo:nb.gps[1]},{la:nb.loc_pt[0],lo:nb.loc_pt[1]})<.15)return;mk('c-nu_bate',nb.gps[0],nb.gps[1],'!',22,'',()=>{showStop(nb.stop||{ds:[nb],pt:nb.gps});infoAt=nb.gps;placeInfo()})._stop={ds:[nb]}});
+    const p=posAt(curT);mk('car',p.la,p.lo,'',16,'Mașina la '+hm(curT));
+  }else{
+    stops.forEach(s=>{const e=mk('c-opt'+(sel===s?' sel':''),s.pt[0],s.pt[1],s.n,24,'',()=>showStop(s));s.el=e;e._stop=s});
+  }
+  draw()}
+function draw(){const r=map.getBoundingClientRect(),dpr=window.devicePixelRatio||1;W=r.width;H=r.height;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+  if(TILES){const tz=Math.max(0,Math.min(19,Math.round(V.z))),sc=Math.pow(2,V.z-tz),c=px(V.la,V.lo,tz),n=Math.pow(2,tz);
+    const x0=Math.floor((c[0]-W/2/sc)/256),x1=Math.floor((c[0]+W/2/sc)/256),y0=Math.floor((c[1]-H/2/sc)/256),y1=Math.floor((c[1]+H/2/sc)/256);
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){if(x<0||y<0||x>=n||y>=n)continue;const im=tile(tz,x,y);if(im.ok)ctx.drawImage(im,(x*256-c[0])*sc+W/2,(y*256-c[1])*sc+H/2,256*sc+.5,256*sc+.5)}}
+  const work=TRK.filter(p=>p.t>=T_START&&p.t<=T_END),aft=TRK.filter(p=>p.t>=T_END),bef=TRK.filter(p=>p.t<=T_START);
+  if(mode==='real'){
+    line(aft.map(p=>[p.la,p.lo]),css('--after'),2.5,[6,6]);line(bef.map(p=>[p.la,p.lo]),css('--after'),2.5,[6,6]);
+    line(work.map(p=>[p.la,p.lo]),'#ffffff',6,null,.9);
+    let run=[],rc=null,ra=1;const flush=()=>{if(run.length>1)line(run,rc,4,null,ra);};
+    for(let i=1;i<work.length;i++){const a=work[i-1],b=work[i],c=segCol(a,b),al=b.t>curT?.22:1;
+      if(c!==rc||al!==ra){flush();run=[[a.la,a.lo]];rc=c;ra=al}run.push([b.la,b.lo])}flush();
+    NB.forEach(nb=>{if(nb.loc_pt&&sec(nb.conf)<=curT)line([nb.gps,nb.loc_pt],css('--bad'),1.5,[5,5],.8)});
+  }else{
+    line(work.map(p=>[p.la,p.lo]),css('--track'),2,null,.3);
+    line(D.geom,css('--opt'),3.5);
+  }
+  els.forEach(o=>{const s=toScr(o.la,o.lo);o.e.style.left=s[0]+'px';o.e.style.top=s[1]+'px'});placeInfo()}
+/* pan / zoom */
+const ptr=new Map();let pinch=0;
+function zoomAt(x,y,dz){const c=px(V.la,V.lo,V.z),wx=c[0]+x-W/2,wy=c[1]+y-H/2,z=Math.max(7,Math.min(18,V.z+dz)),k=Math.pow(2,z-V.z),n=unpx(wx*k-(x-W/2),wy*k-(y-H/2),z);V={la:n[0],lo:n[1],z};draw()}
+map.addEventListener('pointerdown',e=>{if(e.target.closest('#info,.zoom,#lg'))return;hideTip();map.setPointerCapture(e.pointerId);ptr.set(e.pointerId,[e.clientX,e.clientY]);map.classList.add('drag');pinch=0});
+map.addEventListener('pointermove',e=>{if(!ptr.has(e.pointerId))return;const o=ptr.get(e.pointerId);
+  if(ptr.size===1){const c=px(V.la,V.lo,V.z),n=unpx(c[0]-(e.clientX-o[0]),c[1]-(e.clientY-o[1]),V.z);V.la=n[0];V.lo=n[1];ptr.set(e.pointerId,[e.clientX,e.clientY]);draw()}
+  else if(ptr.size===2){ptr.set(e.pointerId,[e.clientX,e.clientY]);const a=[...ptr.values()],d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]),r=map.getBoundingClientRect();
+    if(pinch)zoomAt((a[0][0]+a[1][0])/2-r.left,(a[0][1]+a[1][1])/2-r.top,Math.log2(d/pinch));pinch=d}});
+const up=e=>{ptr.delete(e.pointerId);pinch=0;if(!ptr.size)map.classList.remove('drag')};
+map.addEventListener('pointerup',up);map.addEventListener('pointercancel',up);
+map.addEventListener('wheel',e=>{if(e.target.closest('#info'))return;e.preventDefault();const r=map.getBoundingClientRect();zoomAt(e.clientX-r.left,e.clientY-r.top,e.deltaY<0?.5:-.5)},{passive:false});
+const tip=$('tip'),hdot=$('hdot');
+function hideTip(){tip.hidden=true;hdot.hidden=true}
+function hoverAt(x,y){if(mode!=='real'){hideTip();return}const c=[];let a=toScr(TRK[0].la,TRK[0].lo);
+  for(let i=1;i<TRK.length;i++){const b=toScr(TRK[i].la,TRK[i].lo),dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy;let t=l?((x-a[0])*dx+(y-a[1])*dy)/l:0;t=Math.max(0,Math.min(1,t));
+    const d=Math.hypot(x-(a[0]+t*dx),y-(a[1]+t*dy));if(d<=13){const p0=TRK[i-1],p1=TRK[i];if(p1.t-p0.t<120||havKm(p0,p1)>.05)c.push({d,px:a[0]+t*dx,py:a[1]+t*dy,p:t<.5?p0:p1,sp:Math.round(p0.sp+(p1.sp-p0.sp)*t),tm:Math.round(p0.t+(p1.t-p0.t)*t)})}a=b}
+  if(!c.length){hideTip();return}
+  c.sort((u,v)=>u.tm-v.tm);const pass=[];c.forEach(k=>{const l=pass[pass.length-1];if(l&&k.tm-l.tm<300){if(k.d<l.d)pass[pass.length-1]=k}else pass.push(k)});
+  const show=pass.slice(-4),near=show.reduce((u,v)=>v.d<u.d?v:u);
+  tip.innerHTML=(show.length>1?`<div style="opacity:.8;margin-bottom:3px">A trecut pe aici de ${show.length} ori:</div>`:'')+show.map(k=>{const ex=k.sp-k.p.lim;return `<div><b>${k.sp} km/h</b> · ora ${hm(k.tm)} · ${ex>0?`<span class="ov">cu ${ex} peste limita de ${k.p.lim}</span>`:`<span class="okc">în limita de ${k.p.lim}</span>`}</div>`}).join('')+`<div style="opacity:.8;margin-top:3px">Limită estimată: ${near.p.lim===50?'în localitate':'în afara localității'}</div>`;
+  tip.hidden=false;hdot.hidden=false;hdot.style.left=near.px+'px';hdot.style.top=near.py+'px';
+  placeTip(x,y)}
+function placeTip(x,y){const tw=tip.offsetWidth,th=tip.offsetHeight;tip.style.left=Math.max(6,Math.min(W-tw-6,x+16))+'px';tip.style.top=Math.max(6,y+th+24>H?y-th-12:y+18)+'px'}
+const GPSV={bate:['okc','OK cu GPS'],in_mers:['wrn','confirmat din mers'],nu_bate:['ov','NU bate cu GPS'],fanbox:['box','FANbox'],retur:['ret','nelivrat'],nogps:['ret','fără GPS']};
+function stopTip(s,x,y){hdot.hidden=true;const ds=s.ds.slice().sort((a,b)=>(a.nr||99)-(b.nr||99)),sh=ds.slice(0,9);
+  tip.innerHTML=sh.map(d=>`<div><span class="mono" style="opacity:.8">${d.nr?d.nr+'.':'×'} ${d.conf}</span> <b style="font-size:13.5px">${esc(d.dest)}</b> · <span class="${GPSV[d.cat][0]}">${d.cat==='retur'?esc(d.status.toLowerCase())+', nelivrat':GPSV[d.cat][1]}</span></div>`).join('')+(ds.length>sh.length?`<div style="opacity:.8">și încă ${ds.length-sh.length}</div>`:'')+`<div style="opacity:.8;margin-top:3px">Clic pentru adresă și detalii</div>`;
+  tip.hidden=false;placeTip(x,y)}
+function unsTip(u,x,y){hdot.hidden=true;tip.innerHTML=`<div><b style="font-size:13.5px">Oprire fără scanare</b></div><div>${u.s} – ${u.e} · ${u.min} min</div>`;tip.hidden=false;placeTip(x,y)}
+map.addEventListener('pointermove',e=>{if(ptr.size||e.target.closest('#info,#lg,.zoom')){hideTip();return}const r=map.getBoundingClientRect(),mkE=e.target.closest('.mk');
+  if(mkE&&mkE._stop){stopTip(mkE._stop,e.clientX-r.left,e.clientY-r.top);return}if(mkE&&mkE._uns){unsTip(mkE._uns,e.clientX-r.left,e.clientY-r.top);return}hoverAt(e.clientX-r.left,e.clientY-r.top)});
+map.addEventListener('pointerleave',hideTip);
+map.addEventListener('click',e=>{if(e.target.closest('#info,#lg,.zoom,.mk'))return;const r=map.getBoundingClientRect();hoverAt(e.clientX-r.left,e.clientY-r.top)});
+$('zi').onclick=()=>zoomAt(W/2,H/2,1);$('zo').onclick=()=>zoomAt(W/2,H/2,-1);$('zf').onclick=()=>fit(workPts());
+window.addEventListener('resize',draw);
+
+/* ---------- panou de detalii */
+const gm=p=>`<a href="https://www.google.com/maps?q=${p[0]},${p[1]}" target="_blank" rel="noopener">Vezi locul în Google Maps</a>`;
+let infoAt=null;
+function placeInfo(){const el=$('info');if(el.hidden||!infoAt)return;const p=toScr(infoAt[0],infoAt[1]),w=el.offsetWidth,h=el.offsetHeight;
+  let x=p[0]+22;if(x+w>W-8)x=p[0]-22-w;if(x<8)x=Math.max(8,Math.min(W-w-8,p[0]-w/2));
+  let y=p[1]-28;if(x<p[0]&&x+w>p[0])y=p[1]+22;y=Math.max(8,Math.min(H-h-8,y));el.style.left=x+'px';el.style.top=y+'px'}
+function closeInfo(){$('info').hidden=true;sel=null;infoAt=null;build()}
+function info(html){$('info').innerHTML='<button class="x" aria-label="Închide">×</button>'+html;$('info').hidden=false;$('info').scrollTop=0;$('info').querySelector('.x').onclick=closeInfo;hideTip();placeInfo()}
+function showStop(s,focus){if(!s)return;sel=s;infoAt=s.pt;if(focus){V.la=s.pt[0];V.lo=s.pt[1];V.z=Math.max(V.z,15)}build();
+  const head=mode==='opt'?`Oprirea ${s.n} din ${stops.length} · km ${ro(s.km)}`:`${s.ds.length} ${s.ds.length>1?'colete':'colet'} în acest loc`;
+  info(`<h3>${head}</h3>`+s.ds.map(d=>`<div class="it"><b class="mono">${d.nr?'Nr. '+d.nr:'Nelivrat'}</b> · <span class="mono">${d.conf}</span> <span class="tag t-${d.cat}">${esc(tagTxt(d))}</span><br><b>${esc(d.dest)}</b><br>${esc(d.addr)}, ${esc(d.loc)}<div class="note">${esc(d.note)}${d.est?' Poziție aproximată.':''}</div><div class="awb">AWB ${d.awb}</div></div>`).join('')+`<div class="it">${gm(s.pt)}</div>`)}
+function showUns(i,focus){const u=D.uns[i];sel=null;infoAt=u.pt;if(focus){V.la=u.pt[0];V.lo=u.pt[1];V.z=Math.max(V.z,15);if(mode!=='real')setMode('real')}build();
+  info(`<h3>Oprire fără scanare · ${u.min} min</h3><div class="it"><span class="mono">${u.s} – ${u.e}</span><div class="note">${esc(u.note||'Nicio confirmare în PDA în acest interval.')}</div></div><div class="it">${gm(u.pt)}</div>`)}
+
+/* ---------- mod + oră */
+function setMode(m){mode=m;$('m-real').setAttribute('aria-pressed',m==='real');$('m-opt').setAttribute('aria-pressed',m==='opt');$('timebox').hidden=m!=='real';$('colbox').hidden=m!=='real';$('info').hidden=true;sel=null;legend();build()}
+const setCol=c=>{colorBy=c;['lim','spd','hr'].forEach(k=>$('c-'+k).setAttribute('aria-pressed',c===k));legend();draw()};$('c-lim').onclick=()=>setCol('lim');$('c-spd').onclick=()=>setCol('spd');$('c-hr').onclick=()=>setCol('hr');
+$('m-real').onclick=()=>setMode('real');$('m-opt').onclick=()=>setMode('opt');
+function setT(){curT=+$('tm').value;const n=D.dels.filter(d=>effT(d)!=null&&effT(d)<=curT).length;$('tmo').textContent=curT>=+$('tm').max?'toată ziua':hm(curT)+' · '+n+' colete';build()}
+$('tm').addEventListener('input',setT);
+function mapLegend(){const L=$('lg');if(mode!=='real'){L.hidden=true;return}L.hidden=false;
+  const T={lim:'Cum a mers față de limită',spd:'Cu ce viteză a mers',hr:'La ce oră a trecut'}[colorBy];
+  const rows=colorBy==='lim'?[['Verde','în limita de viteză'],['Galben','cu până la 10 km/h peste'],['Portocaliu','cu 10 – 30 km/h peste'],['Roșu','cu peste 30 km/h peste']].map((r,i)=>[LIM[i][1],r[0]+': '+r[1]]):
+    colorBy==='spd'?SPD.map(x=>[x[1],x[2]+' km/h']):HRS.map((c,i)=>[c,'între '+(H0+i)+':00 și '+(H0+i+1)+':00']);
+  const km=bandKm(rows.length);
+  L.innerHTML=`<summary>${T}</summary><table>${rows.map((r,i)=>`<tr><td><i class="sw" style="background:${r[0]}"></i></td><td>${r[1]}</td><td class="k">${ro(km[i],0)} km</td></tr>`).join('')}<tr><td><i class="sw" style="background:var(--after)"></i></td><td>în afara traseului de lucru</td><td class="k">${ro(M.before+M.after,0)} km</td></tr></table><p>${colorBy==='lim'?'Limită estimată: 50 km/h în localitate, 90 în afară. ':''}Ține mouse-ul pe traseu ca să vezi viteza și ora, iar pe o livrare ca să vezi destinatarul și dacă bate cu GPS-ul.</p>`}
+function legend(){mapLegend();$('legend').innerHTML=mode==='real'?
+ `<span><i class="dot" style="background:var(--ok)"></i>Bate</span><span><i class="dot" style="background:var(--warn)"></i>Confirmat din mers</span><span><i class="dot" style="background:var(--bad)"></i>Nu bate</span><span><i class="dot" style="background:var(--box)"></i>FANbox</span><span><i class="dot" style="background:var(--card);border:2px solid var(--ret)"></i>Nelivrat</span><span><i class="dot" style="border-radius:3px;background:var(--card);border:2px solid var(--ink)"></i>Oprire fără scanare (minute)</span><span><i class="ln" style="border-color:var(--after);border-top-style:dashed"></i>Înainte și după traseul de lucru</span><span>Numărul din cerc: a câta livrare a fost, după ora confirmării. „3–5” înseamnă livrările 3, 4 și 5 în același loc; „×” este colet nelivrat; „!” arată unde era mașina la o confirmare care nu bate.</span>`:
+ `<span><i class="dot" style="background:var(--opt)"></i>Ordinea optimă a opririlor</span><span><i class="ln" style="border-color:var(--opt)"></i>Ruta optimă, ${ro(M.opt)} km</span><span><i class="ln" style="border-color:var(--track);opacity:.4"></i>Traseul real, ${ro(M.loop)} km</span>`}
+
+/* ---------- tabele */
+let flt='all';
+function chips(){const o=[['all','Toate',D.dels.length]].concat(PRI.filter(c=>C[c]).map(c=>[c,CAT[c],C[c]]));
+  $('chips').innerHTML=o.map(c=>`<button data-c="${c[0]}" aria-pressed="${flt===c[0]}">${c[1]} · ${c[2]}</button>`).join('');
+  $('chips').querySelectorAll('button').forEach(b=>b.onclick=()=>{flt=b.dataset.c;chips();rows()})}
+function goMap(){$('map').scrollIntoView({behavior:'smooth',block:'center'})}
+function rows(){const ds=D.dels.filter(d=>flt==='all'||d.cat===flt);
+  $('rows').innerHTML=ds.map(d=>`<tr class="go" tabindex="0" data-a="${d.awb}"><td class="n"><b>${d.nr||'–'}</b></td><td class="n">${d.conf}</td><td><b>${esc(d.dest)}</b><div class="a">${esc(d.addr)}</div><div class="awb">${d.awb}</div></td><td>${esc(d.loc)}</td><td><span class="tag t-${d.cat}">${esc(tagTxt(d))}</span></td><td><div class="note">${esc(d.note)}</div></td></tr>`).join('');
+  $('rows').querySelectorAll('tr').forEach(r=>{const f=()=>{const d=byAwb[r.dataset.a];if(mode!=='real')setMode('real');const st=d.stop||(d.gps?{ds:[d],pt:d.gps}:null);if(!st)return;showStop(st,true);goMap()};r.onclick=f;r.onkeydown=e=>{if(e.key==='Enter')f()}})}
+$('p-uns').innerHTML=`<p class="note" style="margin:12px 0">Opriri de cel puțin 2 minute între plecare și întoarcere, în care PDA-ul nu are nicio confirmare. Apasă pe un rând ca să vezi locul pe hartă.</p><div class="tw"><table><thead><tr><th>Interval</th><th>Durată</th><th>Observație</th></tr></thead><tbody>`+
+ D.uns.map((u,i)=>`<tr class="go" tabindex="0" data-i="${i}"><td class="n">${u.s} – ${u.e}</td><td class="n">${u.min} min</td><td>${esc(u.note||'Nicio confirmare în PDA în acest interval.')}</td></tr>`).join('')+`</tbody></table></div>`;
+$('p-uns').querySelectorAll('tr.go').forEach(r=>{const f=()=>{showUns(+r.dataset.i,true);goMap()};r.onclick=f;r.onkeydown=e=>{if(e.key==='Enter')f()}});
+$('p-opt').innerHTML=`<div class="cmp"><div class="kpi"><div class="v">${ro(M.loop)} <small>km</small></div><div class="l">Traseul real</div><div class="d">din GPS, ${M.t0.slice(0,5)} – ${M.t1.slice(0,5)}</div></div><div class="kpi"><div class="v">${ro(M.opt)} <small>km</small></div><div class="l">Ruta optimă</div><div class="d">plecare și întoarcere în același punct</div></div><div class="kpi"><div class="v">${ro(M.loop-M.opt)} <small>km</small></div><div class="l">Diferență</div><div class="d">circa ${Math.round((M.loop-M.opt)/Math.max(20,M.loop/(M.moveMin/60))*60)} de minute de mers</div></div></div>
+ <p class="note" style="margin:0 0 12px">Ruta e calculată pe drumurile pe care mașina a mers efectiv în acea zi, deci distanțele sunt reale, nu în linie dreaptă. Dacă există scurtături pe care el nu le-a folosit, ruta se poate scurta mai mult. Opririle sunt puse acolo unde era mașina la confirmare, nu la adresa exactă. Coloana „Real” arată ora la care a ajuns el în acel loc.</p>
+ <div class="tw"><table><thead><tr><th>Nr.</th><th>Km</th><th>Opriri și colete</th><th>Localitate</th><th>Real</th></tr></thead><tbody>`+
+ stops.map(s=>`<tr class="go" tabindex="0" data-n="${s.n}"><td class="n">${s.n}</td><td class="n">${ro(s.km)}</td><td>${[...new Set(s.ds.map(d=>d.addr))].map(esc).join('<br>')}<div class="awb">${s.ds.length} ${s.ds.length>1?'colete':'colet'}</div></td><td>${esc([...new Set(s.ds.map(d=>d.loc))].join(', '))}</td><td class="n">${s.t!=null?hm(s.t):'–'}</td></tr>`).join('')+
+ `<tr><td class="n">–</td><td class="n">${ro(M.opt)}</td><td>Întoarcere la depozit</td><td>Craiova</td><td class="n">${M.returned?M.t1.slice(0,5):'–'}</td></tr></tbody></table></div>`;
+$('p-opt').querySelectorAll('tr.go').forEach(r=>{const f=()=>{if(mode!=='opt')setMode('opt');showStop(stops[+r.dataset.n-1],true);goMap()};r.onclick=f;r.onkeydown=e=>{if(e.key==='Enter')f()}});
+['match','uns','opt'].forEach(t=>$('tb-'+t).onclick=()=>['match','uns','opt'].forEach(u=>{$('p-'+u).hidden=u!==t;$('tb-'+u).setAttribute('aria-selected',u===t)}));
+
+if(TILES){$('attr').hidden=false;$('zs').hidden=false;$('zs').onclick=()=>{base=base==='World_Imagery'?'World_Street_Map':'World_Imagery';$('zs').textContent=base==='World_Imagery'?'Străzi':'Satelit';draw()}}else $('nomap').hidden=false;
+$('tm').min=Math.floor(T_START/600)*600;$('tm').max=Math.ceil(T_END/600)*600;$('tm').value=$('tm').max;curT=+$('tm').max;
+chips();rows();legend();$('tmo').textContent='toată ziua';
+W=map.clientWidth;H=map.clientHeight;build();fit(workPts());
+
+}
+(function(){
+const $=id=>document.getElementById(id);
+const files={pda:null,gps:null};
+function setFile(kind,f){files[kind]=f;$('n-'+kind).textContent=f?f.name:'Alege fișierul sau trage-l aici';$('d-'+kind).classList.toggle('ok',!!f);
+  if(kind==='gps'&&f&&!$('o-car').value){const m=f.name.match(/([A-Z]{1,2}\d{2,3}[A-Z]{3})/);if(m)$('o-car').value=m[1]}
+  $('run').disabled=!(files.pda&&files.gps);$('msg').textContent=files.pda&&files.gps?'Gata de analiză.':'Alege cele două fișiere.'}
+['pda','gps'].forEach(k=>{const inp=$('f-'+k),dz=$('d-'+k);inp.addEventListener('change',()=>setFile(k,inp.files[0]||null));
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');const f=e.dataTransfer.files[0];if(f)setFile(k,f)})});
+let lastD=null;
+$('run').addEventListener('click',async()=>{
+  $('err').hidden=true;$('run').disabled=true;const say=t=>{$('msg').textContent=t};
+  try{
+    if(typeof JSZip==='undefined')throw new Error('Nu s-a putut încărca cititorul de Excel. Verifică conexiunea la internet și reîncarcă pagina.');
+    say('Citesc exportul GPS…');const gps=PDAGPS.parseKML(await files.gps.text());
+    say('Citesc raportul PDA…');const rows=await PDAGPS.parseXLSX(await files.pda.arrayBuffer(),JSZip);
+    let depot=null;const dv=$('o-dep').value.trim();if(dv){const m=dv.match(/(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)/);if(!m)throw new Error('Coordonatele depozitului nu sunt bune. Scrie-le ca „44.3008, 23.8366”.');depot=[+m[1].replace(',','.'),+m[2].replace(',','.')]}
+    say('Analizez… poate dura câteva secunde.');await new Promise(r=>setTimeout(r,30));
+    const D=PDAGPS.analyze(gps,rows,{depot,name:$('o-name').value.trim()||null,car:$('o-car').value.trim()||null},t=>say(t+'…'));
+    lastD=D;document.title=D.meta.name+' · PDA vs GPS '+D.meta.date.split('.').slice(0,2).map(x=>x.padStart(2,'0')).join('.');
+    $('upwrap').hidden=true;$('reswrap').hidden=false;window.scrollTo(0,0);RENDER(D,false);
+  }catch(e){$('err').textContent=e&&e.message?e.message:String(e);$('err').hidden=false;say('');$('run').disabled=false;console.error(e)}
+});
+$('again').addEventListener('click',()=>location.reload());
+let dlapi=null;
+(window.claude&&window.claude.use?window.claude.use('downloads'):Promise.resolve(null)).then(x=>{dlapi=x;$('dl').hidden=!x}).catch(()=>{});
+$('dl').addEventListener('click',async()=>{
+  if(!dlapi||!lastD)return;const M=lastD.meta;const tpl=JSON.parse($('tplsrc').textContent);
+  const ttl=document.title;const html='<!doctype html><html lang="ro"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0">'+tpl.split('__TITLE__').join(ttl).split('"__DATA__"').join(JSON.stringify(lastD)).split('"__TILES__"').join('true')+'</body></html>';
+  const fn=(M.name||'curier').replace(/[^A-Za-z0-9ĂÂÎȘȚăâîșț]+/g,'_')+'_'+M.day+'_PDA_vs_GPS.html';
+  $('dlmsg').textContent='';
+  try{await dlapi.save({filename:fn,data:html});$('dlmsg').textContent='Deschide fișierul descărcat în Chrome sau Edge ca să vezi străzile.'}
+  catch(e){const c=e&&e.code;if(c==='declined')return;$('dlmsg').textContent=c==='rate_limited'?'Mai încearcă o dată peste câteva secunde.':'Descărcarea nu e disponibilă aici.';if(c==='unavailable'||c==='not_granted'||c==='capability_disabled')$('dl').hidden=true}
+});
+})();
+</script>
+
+</body></html>

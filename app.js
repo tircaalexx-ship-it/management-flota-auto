@@ -514,6 +514,11 @@ app.get('/masina/:id', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'masina.html'));
 });
 
+// Instrument verificare PDA vs GPS (rulează integral în browser)
+app.get('/verificare-pda', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'tools', 'verificare-pda-gps.html'));
+});
+
 // ==================== CREARE FIȘIERE HTML ====================
 
 // Pagina de login (rămâne la fel ca în codul anterior)
@@ -673,6 +678,7 @@ const mainHTML = `
                 </div>
                 <div class="user-info">
                     <div class="user-welcome">Bun venit, <span id="userName">...</span>! <span id="adminBadge" style="display: none;" class="admin-badge">ADMIN</span></div>
+                    <a href="/verificare-pda" class="logout-btn" style="background:#0b5d57;text-decoration:none;display:inline-block;">📍 Verificare PDA/GPS</a>
                     <button class="logout-btn" onclick="logout()">🚪 Delogare</button>
                 </div>
             </div>
